@@ -18,6 +18,7 @@ return new class extends Migration
             $table->json('middleware')->nullable();
             $table->string('domain')->nullable();
             $table->boolean('is_active')->default(true);
+            $table->boolean('is_healthy')->default(true);
             $table->decimal('priority', 2, 1)->default(0.5);
             $table->string('changefreq')->default('weekly');
             $table->timestamp('last_checked_at')->nullable();
@@ -30,10 +31,22 @@ return new class extends Migration
             $table->string('slug')->unique();
             $table->timestamps();
 
+            // Performance indexes
             $table->index(['environment', 'is_active']);
+            $table->index(['environment', 'is_healthy']);
             $table->index(['uri', 'environment']);
             $table->index('last_checked_at');
             $table->index('error_count');
+            $table->index(['is_active', 'is_healthy']);
+            $table->index(['environment', 'last_checked_at']);
+            $table->index(['environment', 'error_count']);
+            $table->index(['priority', 'is_active']);
+            $table->index(['changefreq', 'is_active']);
+            
+            // Composite indexes for common queries
+            $table->index(['environment', 'is_active', 'is_healthy']);
+            $table->index(['environment', 'last_checked_at', 'is_active']);
+            $table->index(['error_count', 'environment', 'is_active']);
         });
     }
 

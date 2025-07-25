@@ -1,322 +1,391 @@
 # LaravelPlus Sitemap Package
 
-A comprehensive Laravel package for sitemap management with route discovery, status checking, and environment-specific features.
+A comprehensive Laravel package for discovering, monitoring, and managing GET routes with status checking, threshold alerting, and advanced performance monitoring.
 
 ## Features
 
-- 🔍 **Route Discovery**: Automatically discover and analyze GET routes from your Laravel application
-- ✅ **Status Checking**: Monitor route health with concurrent HTTP requests and detailed error tracking
-- 🌍 **Environment Management**: Different configurations for production, staging, and development
-- 📊 **Dashboard**: Beautiful UI to monitor routes, status checks, and errors
-- 🗺️ **Sitemap Generation**: Generate sitemaps in XML, JSON, and CSV formats
-- ⚡ **Concurrent Processing**: Fast status checking with configurable concurrency
-- 🔔 **Error Tracking**: Detailed error logging with categorization and severity levels
-- 📈 **Statistics**: Comprehensive analytics and reporting
-- 🎛️ **Route Management**: Toggle routes, update priorities, and change frequencies
-- 🧹 **Data Cleanup**: Automatic cleanup of old status checks and errors
+- **Route Discovery**: Automatically discover all GET routes in your Laravel application
+- **Status Monitoring**: Check response times and status codes for all routes
+- **Threshold Alerting**: Monitor response times and error rates with configurable thresholds
+- **Background Jobs**: Asynchronous processing for route discovery and status checks
+- **Event System**: Event-driven architecture with listeners for logging and notifications
+- **Performance Monitoring**: Real-time performance metrics and caching optimization
+- **Data Management**: Comprehensive data management with clear, truncate, and cache operations
+- **Modern UI**: Beautiful, responsive interface with real-time updates and Vue 3
+- **API Support**: RESTful API for integration with other systems
+- **Queue Integration**: Background job processing with configurable queues
+- **Caching System**: Intelligent caching for improved performance
+- **Foreign Key Safety**: Proper database operations with constraint handling
 
 ## Installation
 
-### 1. Add the package to your composer.json
-
-```json
-{
-    "repositories": [
-        {
-            "type": "path",
-            "url": "./packages/laravelplus/sitemap"
-        }
-    ],
-    "require": {
-        "laravelplus/sitemap": "@dev"
-    }
-}
-```
-
-### 2. Install the package
-
+1. Install the package via Composer:
 ```bash
-composer install
+composer require laravelplus/sitemap
 ```
 
-### 3. Publish the configuration and migrations
-
+2. Publish the configuration and migrations:
 ```bash
 php artisan vendor:publish --tag=sitemap-config
 php artisan vendor:publish --tag=sitemap-migrations
 ```
 
-### 4. Run migrations
-
+3. Run the migrations:
 ```bash
+php artisan migrate
+```
+
+4. Set up the queue (recommended):
+```bash
+php artisan queue:table
 php artisan migrate
 ```
 
 ## Configuration
 
-The package configuration is located in `config/sitemap.php`. Here are the main sections:
+### Basic Configuration
 
-### Route Discovery
+Add these environment variables to your `.env` file:
 
-```php
-'route_discovery' => [
-    'enabled' => env('SITEMAP_ROUTE_DISCOVERY_ENABLED', true),
-    'methods' => ['GET', 'HEAD'],
-    'exclude_patterns' => [
-        'admin/*',
-        'api/*',
-        '_debugbar/*',
-        'telescope/*',
-        'horizon/*',
-        'log-viewer/*',
-    ],
-    'include_patterns' => [],
-    'max_routes' => env('SITEMAP_MAX_ROUTES', 1000),
-],
+```env
+# Enable/disable features
+SITEMAP_ENABLED=true
+SITEMAP_STATUS_CHECK_ENABLED=true
+SITEMAP_BULK_CHECK_ENABLED=true
+SITEMAP_THRESHOLDS_ENABLED=true
+SITEMAP_QUEUE_ENABLED=true
+SITEMAP_EVENTS_ENABLED=true
+
+# Response time thresholds (in milliseconds)
+SITEMAP_RESPONSE_TIME_WARNING=1000
+SITEMAP_RESPONSE_TIME_CRITICAL=2000
+SITEMAP_RESPONSE_TIME_ALERT=5000
+
+# Error rate thresholds (in percentage)
+SITEMAP_ERROR_RATE_WARNING=5
+SITEMAP_ERROR_RATE_CRITICAL=10
+SITEMAP_ERROR_RATE_ALERT=20
+
+# Status check settings
+SITEMAP_STATUS_CHECK_TIMEOUT=10
+SITEMAP_CONCURRENT_REQUESTS=10
+SITEMAP_MAX_ROUTES_PER_CHECK=50
+SITEMAP_DELAY_BETWEEN_CHECKS=1
+
+# Queue settings
+SITEMAP_QUEUE_CONNECTION=database
+SITEMAP_QUEUE_NAME=sitemap
+SITEMAP_QUEUE_RETRY_ATTEMPTS=3
+SITEMAP_QUEUE_TIMEOUT=300
+
+# Performance settings
+SITEMAP_CACHE_TTL=300
+SITEMAP_CACHE_ENABLED=true
+SITEMAP_PERFORMANCE_MONITORING=true
+
+# Notifications
+SITEMAP_THRESHOLD_NOTIFICATIONS=true
+SITEMAP_THRESHOLD_LOG=true
 ```
 
-### Status Checking
+### Advanced Configuration
+
+The package includes comprehensive configuration options in `config/sitemap.php`:
 
 ```php
-'status_check' => [
-    'enabled' => env('SITEMAP_STATUS_CHECK_ENABLED', true),
-    'timeout' => env('SITEMAP_STATUS_CHECK_TIMEOUT', 30),
-    'concurrent_requests' => env('SITEMAP_CONCURRENT_REQUESTS', 10),
-    'retry_attempts' => env('SITEMAP_RETRY_ATTEMPTS', 3),
-    'acceptable_status_codes' => [200, 201, 202, 301, 302, 404],
-    'exclude_status_codes' => [500, 502, 503, 504],
-],
-```
+return [
+    // Route discovery settings
+    'route_discovery' => [
+        'enabled' => env('SITEMAP_ROUTE_DISCOVERY_ENABLED', true),
+        'methods' => ['GET', 'HEAD'],
+        'exclude_patterns' => [
+            'admin/*',
+            'api/*',
+            '_debugbar/*',
+            '_ignition/*',
+            '_ignition/health-check',
+            'telescope/*',
+            'horizon/*',
+            'log-viewer/*',
+        ],
+        'include_patterns' => [],
+        'max_routes' => 1000,
+    ],
 
-### Environment Settings
+    // Status check settings
+    'status_check' => [
+        'enabled' => env('SITEMAP_STATUS_CHECK_ENABLED', true),
+        'bulk_check_enabled' => env('SITEMAP_BULK_CHECK_ENABLED', true),
+        'timeout' => env('SITEMAP_STATUS_CHECK_TIMEOUT', 10),
+        'concurrent_requests' => env('SITEMAP_CONCURRENT_REQUESTS', 10),
+        'max_routes_per_check' => env('SITEMAP_MAX_ROUTES_PER_CHECK', 50),
+        'delay_between_checks' => env('SITEMAP_DELAY_BETWEEN_CHECKS', 1),
+        'acceptable_status_codes' => [200, 201, 202, 204],
+    ],
 
-```php
-'environments' => [
-    'production' => [
-        'enabled' => true,
-        'cache_duration' => 3600, // 1 hour
-        'check_frequency' => 3600, // 1 hour
-        'notify_on_error' => true,
+    // Performance and caching
+    'cache' => [
+        'enabled' => env('SITEMAP_CACHE_ENABLED', true),
+        'ttl' => env('SITEMAP_CACHE_TTL', 300),
+        'prefix' => 'sitemap_',
     ],
-    'staging' => [
-        'enabled' => true,
-        'cache_duration' => 1800, // 30 minutes
-        'check_frequency' => 1800, // 30 minutes
-        'notify_on_error' => true,
+
+    // Queue settings
+    'queue' => [
+        'enabled' => env('SITEMAP_QUEUE_ENABLED', true),
+        'connection' => env('SITEMAP_QUEUE_CONNECTION', 'database'),
+        'queues' => [
+            'sitemap' => env('SITEMAP_QUEUE_NAME', 'sitemap'),
+            'sitemap-logs' => env('SITEMAP_LOGS_QUEUE', 'sitemap-logs'),
+            'sitemap-notifications' => env('SITEMAP_NOTIFICATIONS_QUEUE', 'sitemap-notifications'),
+            'sitemap-cache' => env('SITEMAP_CACHE_QUEUE', 'sitemap-cache'),
+        ],
+        'retry_attempts' => env('SITEMAP_QUEUE_RETRY_ATTEMPTS', 3),
+        'timeout' => env('SITEMAP_QUEUE_TIMEOUT', 300),
     ],
-    'development' => [
-        'enabled' => false,
-        'cache_duration' => 300, // 5 minutes
-        'check_frequency' => 300, // 5 minutes
-        'notify_on_error' => false,
+
+    // Event settings
+    'events' => [
+        'enabled' => env('SITEMAP_EVENTS_ENABLED', true),
+        'broadcasting' => [
+            'enabled' => env('SITEMAP_BROADCASTING_ENABLED', false),
+            'channel' => env('SITEMAP_BROADCAST_CHANNEL', 'sitemap'),
+        ],
+        'listeners' => [
+            'log_routes_discovered' => env('SITEMAP_LOG_ROUTES_DISCOVERED', true),
+            'notify_status_check_complete' => env('SITEMAP_NOTIFY_STATUS_CHECK', true),
+            'cache_sitemap_results' => env('SITEMAP_CACHE_SITEMAP_RESULTS', true),
+        ],
     ],
-],
+];
 ```
 
 ## Usage
 
-### Artisan Commands
-
-#### Discover Routes
-
-```bash
-# Discover routes for current environment
-php artisan sitemap:discover
-
-# Discover routes for specific environment
-php artisan sitemap:discover --environment=production
-
-# Force discovery even if disabled
-php artisan sitemap:discover --force
-```
-
-#### Check Route Status
-
-```bash
-# Check all routes
-php artisan sitemap:check-status
-
-# Check specific route
-php artisan sitemap:check-status --route=1
-
-# Check for specific environment
-php artisan sitemap:check-status --environment=production
-```
-
-#### Generate Sitemap
-
-```bash
-# Generate XML sitemap
-php artisan sitemap:generate --format=xml
-
-# Generate JSON sitemap
-php artisan sitemap:generate --format=json
-
-# Generate CSV sitemap
-php artisan sitemap:generate --format=csv
-
-# Save to file
-php artisan sitemap:generate --format=xml --output=public/sitemap.xml
-```
-
 ### Web Interface
 
-Access the sitemap dashboard at `/sitemap` (configurable via `sitemap.ui.route_prefix`).
+Access the sitemap dashboard at: `http://your-app.com/sitemap`
 
-#### Available Routes
-
-- `/sitemap` - Dashboard
-- `/sitemap/routes` - Route management
-- `/sitemap/status` - Status checks
-- `/sitemap/errors` - Error tracking
-- `/sitemap/generate` - Sitemap generation
-- `/sitemap/settings` - Configuration
+**Available Pages:**
+- **Dashboard**: Overview with statistics and quick actions
+- **Routes**: Detailed list of all discovered routes
+- **Status**: Route status monitoring and health checks
+- **Errors**: Error tracking and debugging
+- **Settings**: Configuration and data management
+- **Generate**: Sitemap generation and export
 
 ### API Endpoints
 
-#### Statistics
+#### Route Management
+- `POST /sitemap/discover` - Discover new routes (queued job)
+- `POST /sitemap/check-status` - Check status of all routes (queued job)
+- `GET /sitemap/jobs/status` - Get job status and progress
+- `GET /sitemap/jobs/history` - Get recent job history
+
+#### Data Management
+- `POST /sitemap/data/empty` - Clear all sitemap data
+- `POST /sitemap/data/truncate` - Remove old data (configurable days)
+- `POST /sitemap/cache/clear` - Clear all sitemap caches
+
+#### Settings
+- `GET /sitemap/settings` - Get current configuration
+- `POST /sitemap/settings` - Update configuration
+
+### Artisan Commands
 
 ```bash
-GET /sitemap/api/stats
+# Discover routes (synchronous)
+php artisan sitemap:discover
+
+# Check status of all routes (synchronous)
+php artisan sitemap:check-status
+
+# Generate sitemap XML
+php artisan sitemap:generate
+
+# Process background jobs
+php artisan queue:work --queue=sitemap
 ```
 
-#### Routes
+## Background Jobs & Events
 
-```bash
-GET /sitemap/api/routes
-GET /sitemap/api/routes/{id}
-PUT /sitemap/api/routes/{id}/priority
-PUT /sitemap/api/routes/{id}/changefreq
-PUT /sitemap/api/routes/{id}/toggle
+### Available Jobs
+
+- **DiscoverRoutesJob**: Discovers and stores application routes
+- **CheckRoutesStatusJob**: Performs status checks on all routes
+- **GenerateSitemapJob**: Generates sitemap files in background
+
+### Available Events
+
+- **RoutesDiscovered**: Fired when routes are discovered
+- **RoutesStatusChecked**: Fired when status checks complete
+- **SitemapGenerated**: Fired when sitemap is generated
+
+### Available Listeners
+
+- **LogRoutesDiscovered**: Logs route discovery events
+- **NotifyStatusCheckComplete**: Handles status check notifications
+- **CacheSitemapResults**: Caches sitemap generation results
+
+## Data Management
+
+The package provides comprehensive data management capabilities:
+
+### Clear All Data
+```javascript
+// Via web interface
+fetch('/sitemap/data/empty', {
+    method: 'POST',
+    headers: { 'X-CSRF-TOKEN': token }
+});
 ```
 
-#### Actions
-
-```bash
-POST /sitemap/api/discover
-POST /sitemap/api/check-status
-POST /sitemap/api/generate
-DELETE /sitemap/api/cleanup
+### Truncate Old Data
+```javascript
+// Remove data older than X days
+fetch('/sitemap/data/truncate', {
+    method: 'POST',
+    headers: { 'X-CSRF-TOKEN': token },
+    body: JSON.stringify({ days: 30 })
+});
 ```
 
-### Programmatic Usage
-
-```php
-use LaravelPlus\Sitemap\Services\SitemapService;
-
-class SitemapController extends Controller
-{
-    public function __construct(SitemapService $sitemapService)
-    {
-        $this->sitemapService = $sitemapService;
-    }
-
-    public function discover()
-    {
-        $result = $this->sitemapService->discoverAndStoreRoutes();
-        return response()->json($result);
-    }
-
-    public function checkStatus()
-    {
-        $result = $this->sitemapService->checkAllRoutesStatus();
-        return response()->json($result);
-    }
-
-    public function generateSitemap()
-    {
-        $sitemap = $this->sitemapService->generateSitemap('xml');
-        return response($sitemap)->header('Content-Type', 'application/xml');
-    }
-}
+### Clear Cache
+```javascript
+// Clear all sitemap caches
+fetch('/sitemap/cache/clear', {
+    method: 'POST',
+    headers: { 'X-CSRF-TOKEN': token }
+});
 ```
 
-## Environment Variables
+## Performance Monitoring
 
-Add these to your `.env` file:
+The package includes comprehensive performance monitoring:
 
-```env
-# Route Discovery
-SITEMAP_ROUTE_DISCOVERY_ENABLED=true
-SITEMAP_MAX_ROUTES=1000
+### Dashboard Metrics
+- **Execution Time**: Dashboard load time and performance
+- **Cache Hits/Misses**: Cache performance statistics
+- **Database Queries**: Query count and performance
+- **Slow Queries**: Queries taking longer than 100ms
+- **Average Query Time**: Overall database performance
 
-# Status Checking
-SITEMAP_STATUS_CHECK_ENABLED=true
-SITEMAP_STATUS_CHECK_TIMEOUT=30
-SITEMAP_CONCURRENT_REQUESTS=10
-SITEMAP_RETRY_ATTEMPTS=3
+### Performance Optimization
+- **Intelligent Caching**: 5-minute TTL for route statistics
+- **Eager Loading**: Preloaded relationships to prevent N+1 queries
+- **Database Indexes**: Optimized indexes for common queries
+- **Batch Operations**: Chunked processing for large datasets
+- **Concurrent Requests**: Configurable concurrency for status checks
 
-# Cache
-SITEMAP_CACHE_ENABLED=true
-SITEMAP_CACHE_TTL=3600
+## Threshold Alerting
 
-# UI
-SITEMAP_UI_ENABLED=true
+The package includes a comprehensive threshold alerting system:
 
-# Notifications
-SITEMAP_NOTIFICATIONS_ENABLED=true
-SITEMAP_MAIL_NOTIFICATIONS=false
-SITEMAP_SLACK_NOTIFICATIONS=false
-SITEMAP_WEBHOOK_NOTIFICATIONS=false
-SITEMAP_NOTIFICATION_EMAIL=
-SITEMAP_SLACK_WEBHOOK=
-SITEMAP_WEBHOOK_URL=
-```
+### Response Time Monitoring
+- **Warning**: Routes taking longer than 1000ms
+- **Critical**: Routes taking longer than 2000ms  
+- **Alert**: Routes taking longer than 5000ms
 
-## Database Tables
+### Error Rate Monitoring
+- **Warning**: Error rates above 5%
+- **Critical**: Error rates above 10%
+- **Alert**: Error rates above 20%
+
+### Status Code Monitoring
+- **Warning**: 404, 429, 500, 502, 503, 504
+- **Critical**: 500, 502, 503, 504
+
+### Notifications
+- **Log**: Alerts are logged to Laravel's log system
+- **Email**: Send alerts via email (configurable)
+- **Slack**: Send alerts to Slack (configurable)
+- **Webhook**: Send alerts to external webhooks (configurable)
+
+## Database Schema
 
 The package creates three main tables:
 
 ### sitemap_routes
-
-Stores discovered routes with metadata and status information.
+- `id`, `uri`, `name`, `methods`, `controller`, `action`
+- `environment`, `is_active`, `is_healthy`
+- `priority`, `changefreq`, `last_checked_at`
+- `last_status_code`, `last_response_time`, `error_count`
 
 ### sitemap_status_checks
-
-Stores individual status check results for routes.
+- `id`, `route_id`, `status_code`, `response_time`
+- `checked_at`, `environment`, `user_id`
 
 ### sitemap_errors
+- `id`, `route_id`, `error_message`, `error_type`
+- `occurred_at`, `environment`, `user_id`
 
-Stores detailed error information for failed route checks.
+## Customization
 
-## Features in Detail
+### Custom Thresholds
 
-### Route Discovery
+You can set custom thresholds for specific routes or prefixes:
 
-- Automatically discovers GET routes from your Laravel application
-- Configurable exclusion patterns for admin routes, API routes, etc.
-- Calculates priority and change frequency based on route characteristics
-- Supports environment-specific discovery
+```php
+// In config/sitemap.php
+'thresholds' => [
+    'monitoring' => [
+        'prefixes' => [
+            'api' => ['response_time' => 1000, 'error_rate' => 5],
+            'admin' => ['response_time' => 2000, 'error_rate' => 10],
+        ],
+    ],
+],
+```
 
-### Status Checking
+### Custom Notifications
 
-- Concurrent HTTP requests for fast checking
-- Configurable timeout and retry attempts
-- Detailed error categorization (timeout, SSL errors, server errors, etc.)
-- Response time and size tracking
-- Environment-specific status checking
+Implement custom notification channels by extending the `ThresholdService`:
 
-### Error Tracking
+```php
+class CustomThresholdService extends ThresholdService
+{
+    protected function sendCustomNotification(array $alert): void
+    {
+        // Your custom notification logic
+    }
+}
+```
 
-- Categorizes errors by type (timeout, connection failed, SSL error, etc.)
-- Severity levels (critical, warning, info)
-- Stack traces and detailed error messages
-- Recent error tracking and cleanup
+### Custom Event Listeners
 
-### Sitemap Generation
+Register custom event listeners in your `EventServiceProvider`:
 
-- Multiple formats: XML, JSON, CSV
-- Configurable inclusion of lastmod, changefreq, and priority
-- Environment-specific generation
-- Download and API endpoints
+```php
+protected $listen = [
+    RoutesDiscovered::class => [
+        CustomRoutesDiscoveredListener::class,
+    ],
+];
+```
 
-### Dashboard
+## Troubleshooting
 
-- Real-time statistics
-- Route health monitoring
-- Recent errors and status checks
-- Quick actions for discovery, status checking, and generation
-- Responsive design with Tailwind CSS
+### Common Issues
+
+1. **Foreign Key Constraint Errors**: The package now handles foreign key constraints properly with safe deletion order.
+
+2. **Queue Jobs Not Processing**: Ensure your queue worker is running:
+```bash
+php artisan queue:work --queue=sitemap
+```
+
+3. **Performance Issues**: Enable caching and monitor performance metrics in the dashboard.
+
+4. **Route Discovery Issues**: Check the exclusion patterns in `config/sitemap.php`.
+
+### Debugging
+
+Enable debug logging in your `.env`:
+```env
+LOG_LEVEL=debug
+```
+
+Check the Laravel logs for detailed information about route discovery and status checks.
 
 ## Contributing
 
@@ -328,8 +397,4 @@ Stores detailed error information for failed route checks.
 
 ## License
 
-This package is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
-
-## Support
-
-For support, please open an issue on GitHub or contact the LaravelPlus team. 
+This package is open-sourced software licensed under the [MIT license](LICENSE). 

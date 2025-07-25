@@ -9,20 +9,54 @@ use Illuminate\Support\Collection;
 class RouteDiscoveryService
 {
     /**
-     * Discover all GET routes from the application.
+     * Discover all GET routes in the application.
      */
     public function discoverRoutes(): Collection
     {
         $routes = collect();
-        $config = config('sitemap.route_discovery');
+        $config = config('sitemap.route_discovery', [
+            'methods' => ['GET', 'HEAD'],
+            'exclude_patterns' => [
+                'admin/*',
+                'api/*',
+                '_debugbar/*',
+                'telescope/*',
+                'horizon/*',
+                'log-viewer/*',
+            ],
+            'include_patterns' => [],
+            'max_routes' => 1000,
+        ]);
         
-        foreach (Route::getRoutes() as $route) {
+        $allRoutes = Route::getRoutes();
+        \Log::info('Sitemap route discovery started', [
+            'total_routes_found' => count($allRoutes),
+            'config' => $config,
+        ]);
+        
+        $includedCount = 0;
+        $excludedCount = 0;
+        
+        foreach ($allRoutes as $route) {
             if (!$this->shouldIncludeRoute($route, $config)) {
+                $excludedCount++;
+                \Log::debug('Sitemap route excluded', [
+                    'uri' => $route->uri(),
+                    'methods' => $route->methods(),
+                ]);
                 continue;
             }
 
+            $includedCount++;
             $routes->push($this->createRouteData($route));
         }
+        
+        \Log::info('Sitemap route discovery completed', [
+            'total_routes' => count($allRoutes),
+            'included_routes' => $includedCount,
+            'excluded_routes' => $excludedCount,
+            'final_routes' => $routes->count(),
+        ]);
 
         return $routes->unique('uri');
     }
@@ -32,36 +66,47 @@ class RouteDiscoveryService
      */
     protected function shouldIncludeRoute($route, array $config): bool
     {
-        $methods = $route->methods();
-        $uri = $route->uri();
+        try {
+            $methods = $route->methods();
+            $uri = $route->uri();
 
-        // Check if route uses allowed methods
-        if (!array_intersect($methods, $config['methods'])) {
-            return false;
-        }
-
-        // Check exclude patterns
-        foreach ($config['exclude_patterns'] as $pattern) {
-            if ($this->matchesPattern($uri, $pattern)) {
+            // Check if route uses allowed methods
+            if (!isset($config['methods']) || !array_intersect($methods, $config['methods'])) {
                 return false;
             }
-        }
 
-        // Check include patterns (if any are specified)
-        if (!empty($config['include_patterns'])) {
-            $included = false;
-            foreach ($config['include_patterns'] as $pattern) {
-                if ($this->matchesPattern($uri, $pattern)) {
-                    $included = true;
-                    break;
+            // Check exclude patterns
+            if (isset($config['exclude_patterns'])) {
+                foreach ($config['exclude_patterns'] as $pattern) {
+                    if ($this->matchesPattern($uri, $pattern)) {
+                        return false;
+                    }
                 }
             }
-            if (!$included) {
-                return false;
-            }
-        }
 
-        return true;
+            // Check include patterns (if any are specified)
+            if (isset($config['include_patterns']) && !empty($config['include_patterns'])) {
+                $included = false;
+                foreach ($config['include_patterns'] as $pattern) {
+                    if ($this->matchesPattern($uri, $pattern)) {
+                        $included = true;
+                        break;
+                    }
+                }
+                if (!$included) {
+                    return false;
+                }
+            }
+
+            return true;
+        } catch (\Exception $e) {
+            \Log::error('Sitemap route inclusion check failed', [
+                'error' => $e->getMessage(),
+                'uri' => $route->uri() ?? 'unknown',
+                'config' => $config,
+            ]);
+            return false;
+        }
     }
 
     /**
@@ -69,7 +114,9 @@ class RouteDiscoveryService
      */
     protected function matchesPattern(string $uri, string $pattern): bool
     {
-        $pattern = str_replace('*', '.*', $pattern);
+        // Convert wildcard pattern to regex
+        $pattern = preg_quote($pattern, '/');
+        $pattern = str_replace('\*', '.*', $pattern);
         return preg_match('/^' . $pattern . '$/', $uri);
     }
 
@@ -78,26 +125,49 @@ class RouteDiscoveryService
      */
     protected function createRouteData($route): array
     {
-        $action = $route->getAction();
-        $controller = $action['controller'] ?? null;
-        
-        return [
-            'uri' => $route->uri(),
-            'name' => $route->getName(),
-            'methods' => $route->methods(),
-            'controller' => $controller,
-            'action' => $this->extractAction($controller),
-            'middleware' => $route->middleware(),
-            'domain' => $route->getDomain(),
-            'is_active' => true,
-            'priority' => $this->calculatePriority($route),
-            'changefreq' => $this->calculateChangeFreq($route),
-            'environment' => app()->environment(),
-            'metadata' => [
-                'parameters' => $route->parameterNames(),
-                'compiled' => $route->getCompiled(),
-            ],
-        ];
+        try {
+            $action = $route->getAction();
+            $controller = $action['controller'] ?? null;
+            
+            return [
+                'uri' => $route->uri(),
+                'name' => $route->getName(),
+                'methods' => $route->methods(),
+                'controller' => $controller,
+                'action' => $this->extractAction($controller),
+                'middleware' => $route->middleware(),
+                'domain' => $route->getDomain(),
+                'is_active' => true,
+                'priority' => $this->calculatePriority($route),
+                'changefreq' => $this->calculateChangeFreq($route),
+                'environment' => app()->environment(),
+                'metadata' => [
+                    'parameters' => $route->parameterNames(),
+                    'compiled' => $route->getCompiled(),
+                ],
+            ];
+        } catch (\Exception $e) {
+            \Log::error('Sitemap route data creation failed', [
+                'error' => $e->getMessage(),
+                'uri' => $route->uri() ?? 'unknown',
+            ]);
+            
+            // Return minimal route data
+            return [
+                'uri' => $route->uri() ?? 'unknown',
+                'name' => $route->getName(),
+                'methods' => ['GET'],
+                'controller' => null,
+                'action' => null,
+                'middleware' => [],
+                'domain' => null,
+                'is_active' => true,
+                'priority' => 0.5,
+                'changefreq' => 'weekly',
+                'environment' => app()->environment(),
+                'metadata' => [],
+            ];
+        }
     }
 
     /**
@@ -171,74 +241,5 @@ class RouteDiscoveryService
         }
 
         return 'weekly';
-    }
-
-    /**
-     * Store discovered routes in the database.
-     */
-    public function storeRoutes(Collection $routes): int
-    {
-        $stored = 0;
-        $environment = app()->environment();
-
-        foreach ($routes as $routeData) {
-            $routeData['environment'] = $environment;
-            
-            $route = SitemapRoute::updateOrCreate(
-                ['uri' => $routeData['uri'], 'environment' => $environment],
-                $routeData
-            );
-
-            $stored++;
-        }
-
-        return $stored;
-    }
-
-    /**
-     * Get routes for a specific environment.
-     */
-    public function getRoutesForEnvironment(string $environment): Collection
-    {
-        return SitemapRoute::forEnvironment($environment)->active()->get();
-    }
-
-    /**
-     * Get routes with errors.
-     */
-    public function getRoutesWithErrors(string $environment = null): Collection
-    {
-        $query = SitemapRoute::withErrors();
-        
-        if ($environment) {
-            $query->forEnvironment($environment);
-        }
-
-        return $query->get();
-    }
-
-    /**
-     * Get route statistics.
-     */
-    public function getStatistics(string $environment = null): array
-    {
-        $query = SitemapRoute::query();
-        
-        if ($environment) {
-            $query->forEnvironment($environment);
-        }
-
-        $total = $query->count();
-        $active = $query->clone()->active()->count();
-        $withErrors = $query->clone()->withErrors()->count();
-        $healthy = $query->clone()->get()->filter->isHealthy()->count();
-
-        return [
-            'total' => $total,
-            'active' => $active,
-            'with_errors' => $withErrors,
-            'healthy' => $healthy,
-            'error_rate' => $total > 0 ? round(($withErrors / $total) * 100, 2) : 0,
-        ];
     }
 } 

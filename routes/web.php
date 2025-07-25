@@ -2,10 +2,9 @@
 
 use Illuminate\Support\Facades\Route;
 use LaravelPlus\Sitemap\Http\Controllers\SitemapController;
-use LaravelPlus\Sitemap\Http\Controllers\SitemapApiController;
 
 $prefix = config('sitemap.ui.route_prefix', 'sitemap');
-$middleware = config('sitemap.ui.middleware', ['web', 'auth']);
+$middleware = config('sitemap.ui.middleware', ['web']);
 
 Route::prefix($prefix)->middleware($middleware)->group(function () {
     
@@ -15,6 +14,10 @@ Route::prefix($prefix)->middleware($middleware)->group(function () {
     // Routes management
     Route::get('/routes', [SitemapController::class, 'routes'])->name('sitemap.routes');
     Route::get('/routes/{route}', [SitemapController::class, 'routeDetails'])->name('sitemap.route.details');
+    
+    // Route discovery
+    Route::post('/discover', [SitemapController::class, 'discover'])->name('sitemap.discover');
+    Route::post('/check-status', [SitemapController::class, 'checkStatus'])->name('sitemap.check-status');
     
     // Status checks
     Route::get('/status', [SitemapController::class, 'status'])->name('sitemap.status');
@@ -32,17 +35,12 @@ Route::prefix($prefix)->middleware($middleware)->group(function () {
     Route::get('/settings', [SitemapController::class, 'settings'])->name('sitemap.settings');
     Route::post('/settings', [SitemapController::class, 'updateSettings'])->name('sitemap.settings.update');
     
-    // API routes
-    Route::prefix('api')->group(function () {
-        Route::get('/stats', [SitemapApiController::class, 'stats'])->name('sitemap.api.stats');
-        Route::get('/routes', [SitemapApiController::class, 'routes'])->name('sitemap.api.routes');
-        Route::get('/routes/{route}', [SitemapApiController::class, 'route'])->name('sitemap.api.route');
-        Route::put('/routes/{route}/priority', [SitemapApiController::class, 'updatePriority'])->name('sitemap.api.route.priority');
-        Route::put('/routes/{route}/changefreq', [SitemapApiController::class, 'updateChangeFreq'])->name('sitemap.api.route.changefreq');
-        Route::put('/routes/{route}/toggle', [SitemapApiController::class, 'toggleRoute'])->name('sitemap.api.route.toggle');
-        Route::post('/discover', [SitemapApiController::class, 'discover'])->name('sitemap.api.discover');
-        Route::post('/check-status', [SitemapApiController::class, 'checkStatus'])->name('sitemap.api.check-status');
-        Route::post('/generate', [SitemapApiController::class, 'generate'])->name('sitemap.api.generate');
-        Route::delete('/cleanup', [SitemapApiController::class, 'cleanup'])->name('sitemap.api.cleanup');
-    });
+    // Data management
+    Route::post('/data/empty', [SitemapController::class, 'emptyData'])->name('sitemap.data.empty');
+    Route::post('/data/truncate', [SitemapController::class, 'truncateOldData'])->name('sitemap.data.truncate');
+    Route::post('/cache/clear', [SitemapController::class, 'clearCache'])->name('sitemap.cache.clear');
+    
+    // Job management
+    Route::get('/jobs/status', [SitemapController::class, 'jobStatus'])->name('sitemap.jobs.status');
+    Route::get('/jobs/history', [SitemapController::class, 'jobHistory'])->name('sitemap.jobs.history');
 }); 

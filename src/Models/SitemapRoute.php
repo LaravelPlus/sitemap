@@ -102,7 +102,18 @@ class SitemapRoute extends Model
      */
     public function getFullUrlAttribute(): string
     {
-        return config('app.url') . '/' . ltrim($this->uri, '/');
+        try {
+            $baseUrl = config('app.url', 'http://localhost');
+            return rtrim($baseUrl, '/') . '/' . ltrim($this->uri, '/');
+        } catch (\Exception $e) {
+            \Log::error('Sitemap route URL generation failed', [
+                'error' => $e->getMessage(),
+                'uri' => $this->uri,
+            ]);
+            
+            // Fallback to localhost
+            return 'http://localhost/' . ltrim($this->uri, '/');
+        }
     }
 
     /**
@@ -110,8 +121,20 @@ class SitemapRoute extends Model
      */
     public function isHealthy(): bool
     {
-        return $this->error_count === 0 && 
-               in_array($this->last_status_code, config('sitemap.status_check.acceptable_status_codes', [200]));
+        try {
+            $acceptableCodes = config('sitemap.status_check.acceptable_status_codes', [200]);
+            return $this->error_count === 0 && 
+                   in_array($this->last_status_code, $acceptableCodes);
+        } catch (\Exception $e) {
+            \Log::error('Sitemap route health check failed', [
+                'error' => $e->getMessage(),
+                'route_id' => $this->id,
+                'uri' => $this->uri,
+            ]);
+            
+            // Default to unhealthy if there are errors
+            return $this->error_count === 0;
+        }
     }
 
     /**
@@ -128,5 +151,29 @@ class SitemapRoute extends Model
         }
 
         return 'warning';
+    }
+
+    /**
+     * Get the status of the route.
+     */
+    public function getStatusAttribute(): string
+    {
+        if ($this->isHealthy()) {
+            return 'healthy';
+        }
+
+        if ($this->error_count > 0) {
+            return 'error';
+        }
+
+        return 'unknown';
+    }
+
+    /**
+     * Get the response time of the route.
+     */
+    public function getResponseTimeAttribute(): ?float
+    {
+        return $this->last_response_time;
     }
 } 
