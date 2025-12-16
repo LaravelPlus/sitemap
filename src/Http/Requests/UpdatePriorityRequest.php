@@ -1,10 +1,12 @@
 <?php
 
+declare(strict_types=1);
+
 namespace LaravelPlus\Sitemap\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-class UpdatePriorityRequest extends FormRequest
+final class UpdatePriorityRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -27,4 +29,4 @@ class UpdatePriorityRequest extends FormRequest
             'priority.max' => 'Priority must be at most 1',
         ];
     }
-} 
+}

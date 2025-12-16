@@ -1,11 +1,13 @@
 <?php
 
+declare(strict_types=1);
+
 namespace LaravelPlus\Sitemap\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class SitemapStatusCheck extends Model
+final class SitemapStatusCheck extends Model
 {
     protected $fillable = [
         'route_id',
@@ -112,15 +114,15 @@ class SitemapStatusCheck extends Model
     public function getFormattedResponseSizeAttribute(): string
     {
         $size = $this->response_size;
-        
+
         if ($size < 1024) {
             return $size . ' B';
         }
-        
+
         if ($size < 1024 * 1024) {
             return number_format($size / 1024, 1) . ' KB';
         }
-        
+
         return number_format($size / (1024 * 1024), 1) . ' MB';
     }
-} 
+}

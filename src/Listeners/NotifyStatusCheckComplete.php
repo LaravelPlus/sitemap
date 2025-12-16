@@ -1,18 +1,22 @@
 <?php
 
+declare(strict_types=1);
+
 namespace LaravelPlus\Sitemap\Listeners;
 
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Queue\InteractsWithQueue;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use LaravelPlus\Sitemap\Events\RoutesStatusChecked;
+use Throwable;
 
-class NotifyStatusCheckComplete implements ShouldQueue
+final class NotifyStatusCheckComplete implements ShouldQueue
 {
     use InteractsWithQueue;
 
     public $queue = 'sitemap-notifications';
+
     public $tries = 3;
 
     /**
@@ -29,7 +33,7 @@ class NotifyStatusCheckComplete implements ShouldQueue
     public function handle(RoutesStatusChecked $event): void
     {
         $successRate = $event->totalRoutes > 0 ? round(($event->successful / $event->totalRoutes) * 100, 2) : 0;
-        
+
         // Update cache with latest status check results
         Cache::put("sitemap_status_check_{$event->environment}_latest", [
             'total_routes' => $event->totalRoutes,
@@ -96,7 +100,7 @@ class NotifyStatusCheckComplete implements ShouldQueue
     /**
      * Handle a job failure.
      */
-    public function failed(RoutesStatusChecked $event, \Throwable $exception): void
+    public function failed(RoutesStatusChecked $event, Throwable $exception): void
     {
         Log::error('Failed to process status check completion notification', [
             'error' => $exception->getMessage(),
@@ -106,4 +110,4 @@ class NotifyStatusCheckComplete implements ShouldQueue
             ],
         ]);
     }
-} 
+}

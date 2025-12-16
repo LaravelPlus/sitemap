@@ -1,12 +1,15 @@
 <?php
 
+declare(strict_types=1);
+
 namespace LaravelPlus\Sitemap\Services;
 
-use Illuminate\Support\Facades\Route;
-use LaravelPlus\Sitemap\Models\SitemapRoute;
+use Exception;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Route;
+use Log;
 
-class RouteDiscoveryService
+final class RouteDiscoveryService
 {
     /**
      * Discover all GET routes in the application.
@@ -27,31 +30,32 @@ class RouteDiscoveryService
             'include_patterns' => [],
             'max_routes' => 1000,
         ]);
-        
+
         $allRoutes = Route::getRoutes();
-        \Log::info('Sitemap route discovery started', [
+        Log::info('Sitemap route discovery started', [
             'total_routes_found' => count($allRoutes),
             'config' => $config,
         ]);
-        
+
         $includedCount = 0;
         $excludedCount = 0;
-        
+
         foreach ($allRoutes as $route) {
             if (!$this->shouldIncludeRoute($route, $config)) {
                 $excludedCount++;
-                \Log::debug('Sitemap route excluded', [
+                Log::debug('Sitemap route excluded', [
                     'uri' => $route->uri(),
                     'methods' => $route->methods(),
                 ]);
+
                 continue;
             }
 
             $includedCount++;
             $routes->push($this->createRouteData($route));
         }
-        
-        \Log::info('Sitemap route discovery completed', [
+
+        Log::info('Sitemap route discovery completed', [
             'total_routes' => count($allRoutes),
             'included_routes' => $includedCount,
             'excluded_routes' => $excludedCount,
@@ -64,7 +68,7 @@ class RouteDiscoveryService
     /**
      * Check if a route should be included based on configuration.
      */
-    protected function shouldIncludeRoute($route, array $config): bool
+    private function shouldIncludeRoute($route, array $config): bool
     {
         try {
             $methods = $route->methods();
@@ -99,12 +103,13 @@ class RouteDiscoveryService
             }
 
             return true;
-        } catch (\Exception $e) {
-            \Log::error('Sitemap route inclusion check failed', [
+        } catch (Exception $e) {
+            Log::error('Sitemap route inclusion check failed', [
                 'error' => $e->getMessage(),
                 'uri' => $route->uri() ?? 'unknown',
                 'config' => $config,
             ]);
+
             return false;
         }
     }
@@ -112,23 +117,24 @@ class RouteDiscoveryService
     /**
      * Check if URI matches a pattern.
      */
-    protected function matchesPattern(string $uri, string $pattern): bool
+    private function matchesPattern(string $uri, string $pattern): bool
     {
         // Convert wildcard pattern to regex
         $pattern = preg_quote($pattern, '/');
         $pattern = str_replace('\*', '.*', $pattern);
+
         return preg_match('/^' . $pattern . '$/', $uri);
     }
 
     /**
      * Create route data from a route instance.
      */
-    protected function createRouteData($route): array
+    private function createRouteData($route): array
     {
         try {
             $action = $route->getAction();
             $controller = $action['controller'] ?? null;
-            
+
             return [
                 'uri' => $route->uri(),
                 'name' => $route->getName(),
@@ -146,12 +152,12 @@ class RouteDiscoveryService
                     'compiled' => $route->getCompiled(),
                 ],
             ];
-        } catch (\Exception $e) {
-            \Log::error('Sitemap route data creation failed', [
+        } catch (Exception $e) {
+            Log::error('Sitemap route data creation failed', [
                 'error' => $e->getMessage(),
                 'uri' => $route->uri() ?? 'unknown',
             ]);
-            
+
             // Return minimal route data
             return [
                 'uri' => $route->uri() ?? 'unknown',
@@ -173,7 +179,7 @@ class RouteDiscoveryService
     /**
      * Extract action name from controller.
      */
-    protected function extractAction(?string $controller): ?string
+    private function extractAction(?string $controller): ?string
     {
         if (!$controller) {
             return null;
@@ -193,7 +199,7 @@ class RouteDiscoveryService
     /**
      * Calculate priority based on route characteristics.
      */
-    protected function calculatePriority($route): float
+    private function calculatePriority($route): float
     {
         $uri = $route->uri();
         $priority = 0.5;
@@ -209,7 +215,7 @@ class RouteDiscoveryService
         }
 
         // Shorter URLs get higher priority
-        $priority += max(0, (10 - strlen($uri)) * 0.01);
+        $priority += max(0, (10 - mb_strlen($uri)) * 0.01);
 
         // Named routes get slightly higher priority
         if ($route->getName()) {
@@ -222,7 +228,7 @@ class RouteDiscoveryService
     /**
      * Calculate change frequency based on route characteristics.
      */
-    protected function calculateChangeFreq($route): string
+    private function calculateChangeFreq($route): string
     {
         $uri = $route->uri();
 
@@ -242,4 +248,4 @@ class RouteDiscoveryService
 
         return 'weekly';
     }
-} 
+}

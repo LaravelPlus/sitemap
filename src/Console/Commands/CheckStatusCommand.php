@@ -1,12 +1,15 @@
 <?php
 
+declare(strict_types=1);
+
 namespace LaravelPlus\Sitemap\Console\Commands;
 
+use Exception;
 use Illuminate\Console\Command;
-use LaravelPlus\Sitemap\Services\SitemapService;
 use LaravelPlus\Sitemap\Models\SitemapRoute;
+use LaravelPlus\Sitemap\Services\SitemapService;
 
-class CheckStatusCommand extends Command
+final class CheckStatusCommand extends Command
 {
     protected $signature = 'sitemap:check-status 
                             {--environment= : Environment to check routes for}
@@ -32,6 +35,7 @@ class CheckStatusCommand extends Command
                 $route = SitemapRoute::find($routeId);
                 if (!$route) {
                     $this->error("❌ Route with ID {$routeId} not found");
+
                     return 1;
                 }
 
@@ -43,7 +47,7 @@ class CheckStatusCommand extends Command
 
             if ($result['success'] ?? true) {
                 $this->info('✅ Status check completed successfully!');
-                
+
                 $stats = $result['results'] ?? $result;
                 $this->table(
                     ['Metric', 'Value'],
@@ -61,10 +65,12 @@ class CheckStatusCommand extends Command
                 }
             } else {
                 $this->error('❌ Status check failed: ' . ($result['message'] ?? 'Unknown error'));
+
                 return 1;
             }
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $this->error('❌ Status check failed: ' . $e->getMessage());
+
             return 1;
         }
 
@@ -79,4 +85,4 @@ class CheckStatusCommand extends Command
 
         return round(($stats['successful'] / $stats['total']) * 100, 2);
     }
-} 
+}

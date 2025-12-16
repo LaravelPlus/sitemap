@@ -1,14 +1,16 @@
 <?php
 
+declare(strict_types=1);
+
 namespace LaravelPlus\Sitemap\Repositories;
 
-use LaravelPlus\Sitemap\Models\SitemapRoute;
-use Illuminate\Support\Collection;
+use DB;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
+use LaravelPlus\Sitemap\Models\SitemapRoute;
 
-class SitemapRouteRepository
+final class SitemapRouteRepository
 {
     /**
      * Get all routes with pagination and caching.
@@ -16,15 +18,15 @@ class SitemapRouteRepository
     public function getPaginated(int $perPage = 20, array $filters = []): LengthAwarePaginator
     {
         $cacheKey = 'sitemap_routes_paginated_' . md5(serialize($filters) . $perPage);
-        
+
         return Cache::remember($cacheKey, 300, function () use ($perPage, $filters) {
             $query = SitemapRoute::query();
-            
+
             // Apply filters
             if (isset($filters['environment'])) {
                 $query->forEnvironment($filters['environment']);
             }
-            
+
             if (isset($filters['status'])) {
                 switch ($filters['status']) {
                     case 'active':
@@ -41,11 +43,11 @@ class SitemapRouteRepository
                         break;
                 }
             }
-            
+
             if (isset($filters['search'])) {
-                $query->where(function ($q) use ($filters) {
+                $query->where(function ($q) use ($filters): void {
                     $q->where('uri', 'like', '%' . $filters['search'] . '%')
-                      ->orWhere('name', 'like', '%' . $filters['search'] . '%');
+                        ->orWhere('name', 'like', '%' . $filters['search'] . '%');
                 });
             }
 
@@ -59,11 +61,11 @@ class SitemapRouteRepository
     public function getForEnvironment(string $environment): Collection
     {
         $cacheKey = "sitemap_routes_environment_{$environment}";
-        
+
         return Cache::remember($cacheKey, 600, function () use ($environment) {
             return SitemapRoute::forEnvironment($environment)
                 ->active()
-                ->with(['statusChecks' => function ($query) {
+                ->with(['statusChecks' => function ($query): void {
                     $query->latest()->limit(5);
                 }])
                 ->get();
@@ -75,14 +77,14 @@ class SitemapRouteRepository
      */
     public function getWithErrors(?string $environment = null): Collection
     {
-        $cacheKey = 'sitemap_routes_with_errors' . ($environment ? "_$environment" : '');
-        
+        $cacheKey = 'sitemap_routes_with_errors' . ($environment ? "_{$environment}" : '');
+
         return Cache::remember($cacheKey, 300, function () use ($environment) {
             $query = SitemapRoute::withErrors()
-                ->with(['statusChecks' => function ($query) {
+                ->with(['statusChecks' => function ($query): void {
                     $query->latest()->limit(3);
                 }]);
-            
+
             if ($environment) {
                 $query->forEnvironment($environment);
             }
@@ -96,15 +98,15 @@ class SitemapRouteRepository
      */
     public function getHealthy(?string $environment = null): Collection
     {
-        $cacheKey = 'sitemap_routes_healthy' . ($environment ? "_$environment" : '');
-        
+        $cacheKey = 'sitemap_routes_healthy' . ($environment ? "_{$environment}" : '');
+
         return Cache::remember($cacheKey, 600, function () use ($environment) {
             $query = SitemapRoute::active()
                 ->where('is_healthy', true)
-                ->with(['statusChecks' => function ($query) {
+                ->with(['statusChecks' => function ($query): void {
                     $query->latest()->limit(3);
                 }]);
-            
+
             if ($environment) {
                 $query->forEnvironment($environment);
             }
@@ -118,11 +120,11 @@ class SitemapRouteRepository
      */
     public function getStatistics(?string $environment = null): array
     {
-        $cacheKey = 'sitemap_route_statistics' . ($environment ? "_$environment" : '');
-        
+        $cacheKey = 'sitemap_route_statistics' . ($environment ? "_{$environment}" : '');
+
         return Cache::remember($cacheKey, 300, function () use ($environment) {
             $query = SitemapRoute::query();
-            
+
             if ($environment) {
                 $query->forEnvironment($environment);
             }
@@ -130,17 +132,17 @@ class SitemapRouteRepository
             $total = $query->count();
             $active = $query->clone()->active()->count();
             $withErrors = $query->clone()->withErrors()->count();
-            
+
             // Calculate healthy routes correctly (total - with errors)
             $healthy = $total - $withErrors;
-            
+
             $inactive = $query->clone()->where('is_active', false)->count();
-            
+
             // Get average response time
             $avgResponseTime = $query->clone()
                 ->whereNotNull('last_response_time')
                 ->avg('last_response_time') ?? 0;
-            
+
             // Get recently checked routes
             $recentlyChecked = $query->clone()
                 ->where('last_checked_at', '>=', now()->subHours(24))
@@ -172,9 +174,7 @@ class SitemapRouteRepository
      */
     public function getTotal(): int
     {
-        return Cache::remember('sitemap_routes_total', 600, function () {
-            return SitemapRoute::count();
-        });
+        return Cache::remember('sitemap_routes_total', 600, fn () => SitemapRoute::count());
     }
 
     /**
@@ -182,9 +182,7 @@ class SitemapRouteRepository
      */
     public function getHealthyCount(): int
     {
-        return Cache::remember('sitemap_routes_healthy_count', 300, function () {
-            return SitemapRoute::where('is_healthy', true)->count();
-        });
+        return Cache::remember('sitemap_routes_healthy_count', 300, fn () => SitemapRoute::where('is_healthy', true)->count());
     }
 
     /**
@@ -193,11 +191,11 @@ class SitemapRouteRepository
     public function findById(int $id): ?SitemapRoute
     {
         $cacheKey = "sitemap_route_{$id}";
-        
+
         return Cache::remember($cacheKey, 600, function () use ($id) {
-            return SitemapRoute::with(['statusChecks' => function ($query) {
+            return SitemapRoute::with(['statusChecks' => function ($query): void {
                 $query->latest()->limit(10);
-            }, 'errors' => function ($query) {
+            }, 'errors' => function ($query): void {
                 $query->latest()->limit(10);
             }])->find($id);
         });
@@ -209,18 +207,18 @@ class SitemapRouteRepository
     public function updatePriority(int $routeId, float $priority): bool
     {
         $route = $this->findById($routeId);
-        
+
         if (!$route) {
             return false;
         }
 
         $success = $route->update(['priority' => max(0.0, min(1.0, $priority))]);
-        
+
         if ($success) {
             $this->clearRouteCache($routeId);
             $this->clearStatisticsCache();
         }
-        
+
         return $success;
     }
 
@@ -230,24 +228,24 @@ class SitemapRouteRepository
     public function updateChangeFreq(int $routeId, string $changefreq): bool
     {
         $validFreqs = ['always', 'hourly', 'daily', 'weekly', 'monthly', 'yearly', 'never'];
-        
+
         if (!in_array($changefreq, $validFreqs)) {
             return false;
         }
 
         $route = $this->findById($routeId);
-        
+
         if (!$route) {
             return false;
         }
 
         $success = $route->update(['changefreq' => $changefreq]);
-        
+
         if ($success) {
             $this->clearRouteCache($routeId);
             $this->clearStatisticsCache();
         }
-        
+
         return $success;
     }
 
@@ -257,18 +255,18 @@ class SitemapRouteRepository
     public function toggleStatus(int $routeId): bool
     {
         $route = $this->findById($routeId);
-        
+
         if (!$route) {
             return false;
         }
 
         $success = $route->update(['is_active' => !$route->is_active]);
-        
+
         if ($success) {
             $this->clearRouteCache($routeId);
             $this->clearStatisticsCache();
         }
-        
+
         return $success;
     }
 
@@ -279,14 +277,15 @@ class SitemapRouteRepository
     {
         $stored = 0;
         $environment = app()->environment();
-        
+
         // Use batch operations for better performance
-        $routes->chunk(100)->each(function ($chunk) use (&$stored, $environment) {
+        $routes->chunk(100)->each(function ($chunk) use (&$stored, $environment): void {
             $data = $chunk->map(function ($routeData) use ($environment) {
                 $routeData['environment'] = $environment;
+
                 return $routeData;
             })->toArray();
-            
+
             foreach ($data as $routeData) {
                 SitemapRoute::updateOrCreate(
                     ['uri' => $routeData['uri'], 'environment' => $environment],
@@ -295,17 +294,17 @@ class SitemapRouteRepository
                 $stored++;
             }
         });
-        
+
         // Clear cache after bulk operation
         $this->clearStatisticsCache();
-        
+
         return $stored;
     }
 
     /**
      * Clear cache for specific route.
      */
-    protected function clearRouteCache(int $routeId): void
+    private function clearRouteCache(int $routeId): void
     {
         Cache::forget("sitemap_route_{$routeId}");
     }
@@ -313,7 +312,7 @@ class SitemapRouteRepository
     /**
      * Clear statistics cache.
      */
-    protected function clearStatisticsCache(): void
+    private function clearStatisticsCache(): void
     {
         Cache::forget('sitemap_route_statistics');
         Cache::forget('sitemap_route_statistics_local');
@@ -329,9 +328,9 @@ class SitemapRouteRepository
     public function getForBulkCheck(int $limit = 50): Collection
     {
         return SitemapRoute::active()
-            ->where(function ($query) {
+            ->where(function ($query): void {
                 $query->whereNull('last_checked_at')
-                      ->orWhere('last_checked_at', '<=', now()->subMinutes(30));
+                    ->orWhere('last_checked_at', '<=', now()->subMinutes(30));
             })
             ->limit($limit)
             ->get();
@@ -343,23 +342,23 @@ class SitemapRouteRepository
     public function deleteAll(): int
     {
         $count = SitemapRoute::count();
-        
+
         // Disable foreign key checks temporarily
-        \DB::statement('SET FOREIGN_KEY_CHECKS = 0');
-        
+        DB::statement('SET FOREIGN_KEY_CHECKS = 0');
+
         try {
             // Delete in order to respect foreign key constraints
             SitemapRoute::query()->delete();
         } finally {
             // Re-enable foreign key checks
-            \DB::statement('SET FOREIGN_KEY_CHECKS = 1');
+            DB::statement('SET FOREIGN_KEY_CHECKS = 1');
         }
-        
+
         // Clear all route-related caches
         $this->clearStatisticsCache();
         Cache::forget('sitemap_routes_total');
         Cache::forget('sitemap_routes_healthy_count');
-        
+
         return $count;
     }
 
@@ -369,13 +368,13 @@ class SitemapRouteRepository
     public function deleteOld(int $days = 30): int
     {
         $cutoffDate = now()->subDays($days);
-        
+
         $count = SitemapRoute::where('created_at', '<', $cutoffDate)->count();
         SitemapRoute::where('created_at', '<', $cutoffDate)->delete();
-        
+
         // Clear related caches
         $this->clearStatisticsCache();
-        
+
         return $count;
     }
-} 
+}

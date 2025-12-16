@@ -1,14 +1,16 @@
 <?php
 
+declare(strict_types=1);
+
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-return new class extends Migration
+return new class() extends Migration
 {
     public function up(): void
     {
-        Schema::create('sitemap_routes', function (Blueprint $table) {
+        Schema::create('sitemap_routes', function (Blueprint $table): void {
             $table->id();
             $table->string('uri');
             $table->string('name')->nullable();
@@ -42,7 +44,7 @@ return new class extends Migration
             $table->index(['environment', 'error_count']);
             $table->index(['priority', 'is_active']);
             $table->index(['changefreq', 'is_active']);
-            
+
             // Composite indexes for common queries
             $table->index(['environment', 'is_active', 'is_healthy']);
             $table->index(['environment', 'last_checked_at', 'is_active']);
@@ -54,4 +56,4 @@ return new class extends Migration
     {
         Schema::dropIfExists('sitemap_routes');
     }
-}; 
+};

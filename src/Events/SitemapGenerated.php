@@ -1,23 +1,27 @@
 <?php
 
+declare(strict_types=1);
+
 namespace LaravelPlus\Sitemap\Events;
 
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
-use Illuminate\Broadcasting\PresenceChannel;
 use Illuminate\Broadcasting\PrivateChannel;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-class SitemapGenerated
+final class SitemapGenerated
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
     public string $format;
+
     public int $fileSize;
+
     public float $executionTime;
+
     public string $environment;
+
     public ?string $filePath;
 
     /**
@@ -35,7 +39,7 @@ class SitemapGenerated
     /**
      * Get the channels the event should broadcast on.
      *
-     * @return array<int, \Illuminate\Broadcasting\Channel>
+     * @return array<int, Channel>
      */
     public function broadcastOn(): array
     {
@@ -73,4 +77,4 @@ class SitemapGenerated
             return round($bytes / (1024 * 1024), 1) . ' MB';
         }
     }
-} 
+}

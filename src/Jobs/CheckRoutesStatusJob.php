@@ -1,28 +1,37 @@
 <?php
 
+declare(strict_types=1);
+
 namespace LaravelPlus\Sitemap\Jobs;
 
+use Exception;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
-use LaravelPlus\Sitemap\Services\StatusCheckService;
-use LaravelPlus\Sitemap\Models\SitemapRoute;
 use LaravelPlus\Sitemap\Events\RoutesStatusChecked;
+use LaravelPlus\Sitemap\Models\SitemapRoute;
+use LaravelPlus\Sitemap\Services\StatusCheckService;
+use Throwable;
 
-class CheckRoutesStatusJob implements ShouldQueue
+final class CheckRoutesStatusJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public $timeout = 600; // 10 minutes
+
     public $tries = 2;
+
     public $maxExceptions = 2;
 
     protected string $environment;
+
     protected ?string $userId;
+
     protected int $batchSize;
+
     protected bool $checkAll;
 
     /**
@@ -43,7 +52,7 @@ class CheckRoutesStatusJob implements ShouldQueue
     public function handle(StatusCheckService $statusCheckService): void
     {
         $startTime = microtime(true);
-        
+
         Log::info('Sitemap status check job started', [
             'environment' => $this->environment,
             'user_id' => $this->userId,
@@ -55,19 +64,20 @@ class CheckRoutesStatusJob implements ShouldQueue
         try {
             // Get routes to check
             $routes = $this->getRoutesToCheck();
-            
+
             if ($routes->isEmpty()) {
                 Log::info('Sitemap status check job: no routes to check', [
                     'environment' => $this->environment,
                 ]);
+
                 return;
             }
 
             // Check routes status
             $results = $statusCheckService->checkRoutes($routes);
-            
+
             $executionTime = microtime(true) - $startTime;
-            
+
             Log::info('Sitemap status check job completed', [
                 'routes_checked' => $results['total'],
                 'successful' => $results['successful'],
@@ -88,7 +98,7 @@ class CheckRoutesStatusJob implements ShouldQueue
                 $executionTime
             ));
 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('Sitemap status check job failed', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
@@ -106,16 +116,16 @@ class CheckRoutesStatusJob implements ShouldQueue
     protected function getRoutesToCheck()
     {
         $query = SitemapRoute::active();
-        
+
         if ($this->environment) {
             $query->forEnvironment($this->environment);
         }
 
         if (!$this->checkAll) {
             // Only check routes that haven't been checked recently
-            $query->where(function ($q) {
+            $query->where(function ($q): void {
                 $q->whereNull('last_checked_at')
-                  ->orWhere('last_checked_at', '<=', now()->subMinutes(30));
+                    ->orWhere('last_checked_at', '<=', now()->subMinutes(30));
             });
         }
 
@@ -125,7 +135,7 @@ class CheckRoutesStatusJob implements ShouldQueue
     /**
      * Handle a job failure.
      */
-    public function failed(\Throwable $exception): void
+    public function failed(Throwable $exception): void
     {
         Log::error('Sitemap status check job failed permanently', [
             'error' => $exception->getMessage(),
@@ -133,4 +143,4 @@ class CheckRoutesStatusJob implements ShouldQueue
             'job_id' => $this->job->getJobId(),
         ]);
     }
-} 
+}

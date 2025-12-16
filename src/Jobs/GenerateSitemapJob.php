@@ -1,7 +1,10 @@
 <?php
 
+declare(strict_types=1);
+
 namespace LaravelPlus\Sitemap\Jobs;
 
+use Exception;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -9,20 +12,26 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
-use LaravelPlus\Sitemap\Services\SitemapService;
 use LaravelPlus\Sitemap\Events\SitemapGenerated;
+use LaravelPlus\Sitemap\Services\SitemapService;
+use Throwable;
 
-class GenerateSitemapJob implements ShouldQueue
+final class GenerateSitemapJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public $timeout = 300; // 5 minutes
+
     public $tries = 2;
+
     public $maxExceptions = 2;
 
     protected string $format;
+
     protected string $environment;
+
     protected ?string $userId;
+
     protected bool $saveToDisk;
 
     /**
@@ -43,7 +52,7 @@ class GenerateSitemapJob implements ShouldQueue
     public function handle(SitemapService $sitemapService): void
     {
         $startTime = microtime(true);
-        
+
         Log::info('Sitemap generation job started', [
             'format' => $this->format,
             'environment' => $this->environment,
@@ -55,16 +64,16 @@ class GenerateSitemapJob implements ShouldQueue
         try {
             // Generate sitemap
             $sitemap = $sitemapService->generateSitemap($this->format);
-            
+
             $executionTime = microtime(true) - $startTime;
-            $fileSize = strlen($sitemap);
-            
+            $fileSize = mb_strlen($sitemap);
+
             // Save to disk if requested
             $filePath = null;
             if ($this->saveToDisk) {
                 $filePath = $this->saveSitemapToDisk($sitemap);
             }
-            
+
             Log::info('Sitemap generation job completed', [
                 'format' => $this->format,
                 'file_size' => $this->formatFileSize($fileSize),
@@ -82,7 +91,7 @@ class GenerateSitemapJob implements ShouldQueue
                 $filePath
             ));
 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('Sitemap generation job failed', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
@@ -102,9 +111,9 @@ class GenerateSitemapJob implements ShouldQueue
     {
         $filename = "sitemap-{$this->format}-" . now()->format('Y-m-d-H-i-s') . ".{$this->format}";
         $path = "sitemaps/{$this->environment}/{$filename}";
-        
+
         Storage::disk('public')->put($path, $sitemap);
-        
+
         return $path;
     }
 
@@ -125,7 +134,7 @@ class GenerateSitemapJob implements ShouldQueue
     /**
      * Handle a job failure.
      */
-    public function failed(\Throwable $exception): void
+    public function failed(Throwable $exception): void
     {
         Log::error('Sitemap generation job failed permanently', [
             'error' => $exception->getMessage(),
@@ -134,4 +143,4 @@ class GenerateSitemapJob implements ShouldQueue
             'job_id' => $this->job->getJobId(),
         ]);
     }
-} 
+}

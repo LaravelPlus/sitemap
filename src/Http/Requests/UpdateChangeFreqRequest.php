@@ -1,10 +1,12 @@
 <?php
 
+declare(strict_types=1);
+
 namespace LaravelPlus\Sitemap\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-class UpdateChangeFreqRequest extends FormRequest
+final class UpdateChangeFreqRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -25,4 +27,4 @@ class UpdateChangeFreqRequest extends FormRequest
             'changefreq.in' => 'Change frequency must be one of: always, hourly, daily, weekly, monthly, yearly, never',
         ];
     }
-} 
+}

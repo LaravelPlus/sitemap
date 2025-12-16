@@ -1,13 +1,17 @@
 <?php
 
+declare(strict_types=1);
+
 namespace LaravelPlus\Sitemap\Models;
 
+use Exception;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Log;
 use Spatie\Sluggable\HasSlug;
 use Spatie\Sluggable\SlugOptions;
 
-class SitemapRoute extends Model
+final class SitemapRoute extends Model
 {
     use HasSlug;
 
@@ -104,15 +108,16 @@ class SitemapRoute extends Model
     {
         try {
             $baseUrl = config('app.url', 'http://localhost');
-            return rtrim($baseUrl, '/') . '/' . ltrim($this->uri, '/');
-        } catch (\Exception $e) {
-            \Log::error('Sitemap route URL generation failed', [
+
+            return mb_rtrim($baseUrl, '/') . '/' . mb_ltrim($this->uri, '/');
+        } catch (Exception $e) {
+            Log::error('Sitemap route URL generation failed', [
                 'error' => $e->getMessage(),
                 'uri' => $this->uri,
             ]);
-            
+
             // Fallback to localhost
-            return 'http://localhost/' . ltrim($this->uri, '/');
+            return 'http://localhost/' . mb_ltrim($this->uri, '/');
         }
     }
 
@@ -123,15 +128,16 @@ class SitemapRoute extends Model
     {
         try {
             $acceptableCodes = config('sitemap.status_check.acceptable_status_codes', [200]);
-            return $this->error_count === 0 && 
+
+            return $this->error_count === 0 &&
                    in_array($this->last_status_code, $acceptableCodes);
-        } catch (\Exception $e) {
-            \Log::error('Sitemap route health check failed', [
+        } catch (Exception $e) {
+            Log::error('Sitemap route health check failed', [
                 'error' => $e->getMessage(),
                 'route_id' => $this->id,
                 'uri' => $this->uri,
             ]);
-            
+
             // Default to unhealthy if there are errors
             return $this->error_count === 0;
         }
@@ -176,4 +182,4 @@ class SitemapRoute extends Model
     {
         return $this->last_response_time;
     }
-} 
+}

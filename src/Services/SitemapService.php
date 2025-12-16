@@ -1,22 +1,29 @@
 <?php
 
+declare(strict_types=1);
+
 namespace LaravelPlus\Sitemap\Services;
 
+use Exception;
 use Illuminate\Support\Collection;
-use LaravelPlus\Sitemap\Models\SitemapRoute;
-use LaravelPlus\Sitemap\Repositories\SitemapRouteRepository;
-use LaravelPlus\Sitemap\Repositories\SitemapStatusCheckRepository;
-use LaravelPlus\Sitemap\Repositories\SitemapErrorRepository;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use InvalidArgumentException;
+use LaravelPlus\Sitemap\Repositories\SitemapErrorRepository;
+use LaravelPlus\Sitemap\Repositories\SitemapRouteRepository;
+use LaravelPlus\Sitemap\Repositories\SitemapStatusCheckRepository;
 
-class SitemapService
+final class SitemapService
 {
-    protected RouteDiscoveryService $routeDiscovery;
-    protected StatusCheckService $statusCheck;
-    protected SitemapRouteRepository $routeRepository;
-    protected SitemapStatusCheckRepository $statusCheckRepository;
-    protected SitemapErrorRepository $errorRepository;
+    private RouteDiscoveryService $routeDiscovery;
+
+    private StatusCheckService $statusCheck;
+
+    private SitemapRouteRepository $routeRepository;
+
+    private SitemapStatusCheckRepository $statusCheckRepository;
+
+    private SitemapErrorRepository $errorRepository;
 
     public function __construct(
         RouteDiscoveryService $routeDiscovery,
@@ -79,7 +86,7 @@ class SitemapService
                 'routes_stored' => $stored,
                 'environment' => $environment,
             ];
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('Sitemap route discovery failed', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
@@ -126,7 +133,7 @@ class SitemapService
                 'results' => $results,
                 'environment' => $environment,
             ];
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('Sitemap status check failed', [
                 'error' => $e->getMessage(),
                 'environment' => $environment,
@@ -147,19 +154,19 @@ class SitemapService
     {
         $environment = app()->environment();
         $routes = $this->routeRepository->getForEnvironment($environment);
-        
-        return match($format) {
+
+        return match ($format) {
             'xml' => $this->generateXmlSitemap($routes),
             'json' => $this->generateJsonSitemap($routes),
             'csv' => $this->generateCsvSitemap($routes),
-            default => throw new \InvalidArgumentException("Unsupported format: {$format}"),
+            default => throw new InvalidArgumentException("Unsupported format: {$format}"),
         };
     }
 
     /**
      * Generate XML sitemap.
      */
-    protected function generateXmlSitemap(Collection $routes): string
+    private function generateXmlSitemap(Collection $routes): string
     {
         $xml = '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
         $xml .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";
@@ -167,19 +174,19 @@ class SitemapService
         foreach ($routes as $route) {
             $xml .= '  <url>' . "\n";
             $xml .= '    <loc>' . htmlspecialchars($route->full_url) . '</loc>' . "\n";
-            
+
             if (config('sitemap.export.include_lastmod') && $route->last_checked_at) {
                 $xml .= '    <lastmod>' . $route->last_checked_at->toISOString() . '</lastmod>' . "\n";
             }
-            
+
             if (config('sitemap.export.include_changefreq')) {
                 $xml .= '    <changefreq>' . $route->changefreq . '</changefreq>' . "\n";
             }
-            
+
             if (config('sitemap.export.include_priority')) {
                 $xml .= '    <priority>' . $route->priority . '</priority>' . "\n";
             }
-            
+
             $xml .= '  </url>' . "\n";
         }
 
@@ -191,25 +198,23 @@ class SitemapService
     /**
      * Generate JSON sitemap.
      */
-    protected function generateJsonSitemap(Collection $routes): string
+    private function generateJsonSitemap(Collection $routes): string
     {
         $data = [
             'sitemap' => [
                 'generated_at' => now()->toISOString(),
                 'environment' => app()->environment(),
                 'total_urls' => $routes->count(),
-                'urls' => $routes->map(function ($route) {
-                    return [
-                        'url' => $route->full_url,
-                        'uri' => $route->uri,
-                        'name' => $route->name,
-                        'priority' => $route->priority,
-                        'changefreq' => $route->changefreq,
-                        'last_checked' => $route->last_checked_at?->toISOString(),
-                        'status_code' => $route->last_status_code,
-                        'is_healthy' => $route->isHealthy(),
-                    ];
-                })->toArray(),
+                'urls' => $routes->map(fn ($route) => [
+                    'url' => $route->full_url,
+                    'uri' => $route->uri,
+                    'name' => $route->name,
+                    'priority' => $route->priority,
+                    'changefreq' => $route->changefreq,
+                    'last_checked' => $route->last_checked_at?->toISOString(),
+                    'status_code' => $route->last_status_code,
+                    'is_healthy' => $route->isHealthy(),
+                ])->toArray(),
             ],
         ];
 
@@ -219,7 +224,7 @@ class SitemapService
     /**
      * Generate CSV sitemap.
      */
-    protected function generateCsvSitemap(Collection $routes): string
+    private function generateCsvSitemap(Collection $routes): string
     {
         $csv = "URL,URI,Name,Priority,ChangeFreq,LastChecked,StatusCode,IsHealthy\n";
 
@@ -247,14 +252,14 @@ class SitemapService
     {
         $startTime = microtime(true);
         $environment = app()->environment();
-        
+
         $routeStats = $this->routeRepository->getStatistics($environment);
         $statusStats = $this->statusCheckRepository->getStatistics($environment);
-        
+
         $recentErrors = $this->errorRepository->getRecent(24, 10);
 
         $executionTime = microtime(true) - $startTime;
-        
+
         // Log performance metrics
         Log::info('Sitemap dashboard stats generated', [
             'execution_time' => round($executionTime * 1000, 2) . 'ms',
@@ -303,12 +308,12 @@ class SitemapService
     /**
      * Calculate cache hit rate.
      */
-    protected function calculateCacheHitRate(): float
+    private function calculateCacheHitRate(): float
     {
         $hits = Cache::get('sitemap_cache_hits', 0);
         $misses = Cache::get('sitemap_cache_misses', 0);
         $total = $hits + $misses;
-        
+
         return $total > 0 ? round(($hits / $total) * 100, 2) : 0;
     }
 
@@ -334,11 +339,11 @@ class SitemapService
     public function recordQueryPerformance(float $executionTime): void
     {
         Cache::increment('sitemap_db_queries');
-        
+
         if ($executionTime > 100) { // Queries taking more than 100ms
             Cache::increment('sitemap_slow_queries');
         }
-        
+
         // Update average query time
         $currentAvg = Cache::get('sitemap_avg_query_time', 0);
         $totalQueries = Cache::get('sitemap_db_queries', 1);
@@ -393,7 +398,7 @@ class SitemapService
     {
         $deletedStatusChecks = $this->statusCheckRepository->cleanupOld($days);
         $deletedErrors = $this->errorRepository->cleanupOld($days);
-        
+
         return [
             'status_checks_deleted' => $deletedStatusChecks,
             'errors_deleted' => $deletedErrors,
@@ -418,7 +423,7 @@ class SitemapService
     {
         $totalRoutes = $this->routeRepository->getTotal();
         $estimatedSize = $totalRoutes * 200; // Rough estimate: 200 bytes per route
-        
+
         if ($estimatedSize < 1024) {
             return $estimatedSize . ' B';
         } elseif ($estimatedSize < 1024 * 1024) {
@@ -427,4 +432,4 @@ class SitemapService
             return round($estimatedSize / (1024 * 1024), 1) . ' MB';
         }
     }
-} 
+}

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 return [
     /*
     |--------------------------------------------------------------------------
@@ -259,4 +261,4 @@ return [
         'include_changefreq' => true,
         'include_priority' => true,
     ],
-]; 
+];

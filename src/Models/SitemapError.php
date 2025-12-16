@@ -1,11 +1,13 @@
 <?php
 
+declare(strict_types=1);
+
 namespace LaravelPlus\Sitemap\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class SitemapError extends Model
+final class SitemapError extends Model
 {
     protected $fillable = [
         'route_id',
@@ -62,15 +64,15 @@ class SitemapError extends Model
     {
         $criticalErrors = ['timeout', 'connection_failed', 'ssl_error'];
         $warningErrors = ['redirect', 'not_found', 'forbidden'];
-        
+
         if (in_array($this->error_type, $criticalErrors)) {
             return 'critical';
         }
-        
+
         if (in_array($this->error_type, $warningErrors)) {
             return 'warning';
         }
-        
+
         return 'info';
     }
 
@@ -79,7 +81,7 @@ class SitemapError extends Model
      */
     public function getErrorColorAttribute(): string
     {
-        return match($this->severity) {
+        return match ($this->severity) {
             'critical' => 'danger',
             'warning' => 'warning',
             default => 'info',
@@ -91,8 +93,8 @@ class SitemapError extends Model
      */
     public function getTruncatedMessageAttribute(): string
     {
-        return strlen($this->error_message) > 100 
-            ? substr($this->error_message, 0, 100) . '...'
+        return mb_strlen($this->error_message) > 100
+            ? mb_substr($this->error_message, 0, 100) . '...'
             : $this->error_message;
     }
-} 
+}

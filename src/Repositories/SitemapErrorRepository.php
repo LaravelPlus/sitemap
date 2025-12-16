@@ -1,13 +1,16 @@
 <?php
 
+declare(strict_types=1);
+
 namespace LaravelPlus\Sitemap\Repositories;
 
-use LaravelPlus\Sitemap\Models\SitemapError;
-use Illuminate\Support\Collection;
+use DB;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
+use LaravelPlus\Sitemap\Models\SitemapError;
 use LaravelPlus\Sitemap\Models\SitemapRoute;
 
-class SitemapErrorRepository
+final class SitemapErrorRepository
 {
     /**
      * Get errors with pagination.
@@ -15,15 +18,15 @@ class SitemapErrorRepository
     public function getPaginated(int $perPage = 20, array $filters = []): LengthAwarePaginator
     {
         $query = SitemapError::with('route');
-        
+
         if (isset($filters['environment'])) {
             $query->forEnvironment($filters['environment']);
         }
-        
+
         if (isset($filters['type'])) {
             $query->byType($filters['type']);
         }
-        
+
         if (isset($filters['route_id'])) {
             $query->where('route_id', $filters['route_id']);
         }
@@ -67,6 +70,7 @@ class SitemapErrorRepository
     public function cleanupOld(int $days = 30): int
     {
         $cutoffDate = now()->subDays($days);
+
         return SitemapError::where('occurred_at', '<', $cutoffDate)->delete();
     }
 
@@ -93,11 +97,11 @@ class SitemapErrorRepository
     {
         $totalRoutes = SitemapRoute::count();
         $totalErrors = $this->getTotal();
-        
+
         if ($totalRoutes === 0) {
             return 0.0;
         }
-        
+
         return round(($totalErrors / $totalRoutes) * 100, 2);
     }
 
@@ -126,18 +130,18 @@ class SitemapErrorRepository
     public function deleteAll(): int
     {
         $count = SitemapError::count();
-        
+
         // Disable foreign key checks temporarily
-        \DB::statement('SET FOREIGN_KEY_CHECKS = 0');
-        
+        DB::statement('SET FOREIGN_KEY_CHECKS = 0');
+
         try {
             // Delete in order to respect foreign key constraints
             SitemapError::query()->delete();
         } finally {
             // Re-enable foreign key checks
-            \DB::statement('SET FOREIGN_KEY_CHECKS = 1');
+            DB::statement('SET FOREIGN_KEY_CHECKS = 1');
         }
-        
+
         return $count;
     }
 
@@ -147,10 +151,10 @@ class SitemapErrorRepository
     public function deleteOld(int $days = 30): int
     {
         $cutoffDate = now()->subDays($days);
-        
+
         $count = SitemapError::where('occurred_at', '<', $cutoffDate)->count();
         SitemapError::where('occurred_at', '<', $cutoffDate)->delete();
-        
+
         return $count;
     }
-} 
+}

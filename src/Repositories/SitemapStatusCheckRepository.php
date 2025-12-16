@@ -1,12 +1,15 @@
 <?php
 
+declare(strict_types=1);
+
 namespace LaravelPlus\Sitemap\Repositories;
 
-use LaravelPlus\Sitemap\Models\SitemapStatusCheck;
-use Illuminate\Support\Collection;
+use DB;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
+use LaravelPlus\Sitemap\Models\SitemapStatusCheck;
 
-class SitemapStatusCheckRepository
+final class SitemapStatusCheckRepository
 {
     /**
      * Get status checks with pagination.
@@ -14,15 +17,15 @@ class SitemapStatusCheckRepository
     public function getPaginated(int $perPage = 20, array $filters = []): LengthAwarePaginator
     {
         $query = SitemapStatusCheck::with('route');
-        
+
         if (isset($filters['environment'])) {
             $query->forEnvironment($filters['environment']);
         }
-        
+
         if (isset($filters['status_code'])) {
             $query->withStatusCode($filters['status_code']);
         }
-        
+
         if (isset($filters['route_id'])) {
             $query->where('route_id', $filters['route_id']);
         }
@@ -59,7 +62,7 @@ class SitemapStatusCheckRepository
     public function getStatistics(?string $environment = null): array
     {
         $query = SitemapStatusCheck::query();
-        
+
         if ($environment) {
             $query->forEnvironment($environment);
         }
@@ -92,6 +95,7 @@ class SitemapStatusCheckRepository
     public function cleanupOld(int $days = 30): int
     {
         $cutoffDate = now()->subDays($days);
+
         return SitemapStatusCheck::where('checked_at', '<', $cutoffDate)->delete();
     }
 
@@ -130,7 +134,7 @@ class SitemapStatusCheckRepository
         $avg = SitemapStatusCheck::whereNotNull('response_time')
             ->where('response_time', '>', 0)
             ->avg('response_time');
-        
+
         return round($avg ?? 0, 2);
     }
 
@@ -140,18 +144,18 @@ class SitemapStatusCheckRepository
     public function deleteAll(): int
     {
         $count = SitemapStatusCheck::count();
-        
+
         // Disable foreign key checks temporarily
-        \DB::statement('SET FOREIGN_KEY_CHECKS = 0');
-        
+        DB::statement('SET FOREIGN_KEY_CHECKS = 0');
+
         try {
             // Delete in order to respect foreign key constraints
             SitemapStatusCheck::query()->delete();
         } finally {
             // Re-enable foreign key checks
-            \DB::statement('SET FOREIGN_KEY_CHECKS = 1');
+            DB::statement('SET FOREIGN_KEY_CHECKS = 1');
         }
-        
+
         return $count;
     }
 
@@ -161,10 +165,10 @@ class SitemapStatusCheckRepository
     public function deleteOld(int $days = 30): int
     {
         $cutoffDate = now()->subDays($days);
-        
+
         $count = SitemapStatusCheck::where('checked_at', '<', $cutoffDate)->count();
         SitemapStatusCheck::where('checked_at', '<', $cutoffDate)->delete();
-        
+
         return $count;
     }
-} 
+}

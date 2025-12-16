@@ -1,11 +1,14 @@
 <?php
 
+declare(strict_types=1);
+
 namespace LaravelPlus\Sitemap\Console\Commands;
 
+use Exception;
 use Illuminate\Console\Command;
 use LaravelPlus\Sitemap\Services\SitemapService;
 
-class DiscoverRoutesCommand extends Command
+final class DiscoverRoutesCommand extends Command
 {
     protected $signature = 'sitemap:discover 
                             {--environment= : Environment to discover routes for}
@@ -39,13 +42,15 @@ class DiscoverRoutesCommand extends Command
                 );
             } else {
                 $this->error('❌ Route discovery failed: ' . $result['message']);
+
                 return 1;
             }
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $this->error('❌ Route discovery failed: ' . $e->getMessage());
+
             return 1;
         }
 
         return 0;
     }
-} 
+}

@@ -1,23 +1,28 @@
 <?php
 
+declare(strict_types=1);
+
 namespace LaravelPlus\Sitemap\Http\Controllers;
 
+use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
-use LaravelPlus\Sitemap\Services\SitemapService;
+use Illuminate\Support\Facades\Cache;
 use LaravelPlus\Sitemap\Models\SitemapRoute;
-use LaravelPlus\Sitemap\Models\SitemapStatusCheck;
-use LaravelPlus\Sitemap\Models\SitemapError;
+use LaravelPlus\Sitemap\Repositories\SitemapErrorRepository;
 use LaravelPlus\Sitemap\Repositories\SitemapRouteRepository;
 use LaravelPlus\Sitemap\Repositories\SitemapStatusCheckRepository;
-use LaravelPlus\Sitemap\Repositories\SitemapErrorRepository;
-use Illuminate\Support\Facades\Cache;
+use LaravelPlus\Sitemap\Services\SitemapService;
+use Log;
 
-class SitemapController extends Controller
+final class SitemapController extends Controller
 {
     protected SitemapService $sitemapService;
+
     protected SitemapRouteRepository $routeRepository;
+
     protected SitemapStatusCheckRepository $statusCheckRepository;
+
     protected SitemapErrorRepository $errorRepository;
 
     public function __construct(
@@ -85,7 +90,7 @@ class SitemapController extends Controller
         $statusChecks = $this->statusCheckRepository->getPaginated(20, $filters);
         $recentChecks = $this->statusCheckRepository->getRecent(10);
         $stats = $this->statusCheckRepository->getStatistics();
-        
+
         // Get status statistics
         $healthyCount = $this->statusCheckRepository->getHealthyCount();
         $errorCount = $this->statusCheckRepository->getErrorCount();
@@ -93,12 +98,12 @@ class SitemapController extends Controller
         $avgResponseTime = $this->statusCheckRepository->getAverageResponseTime();
 
         return view('sitemap::status', compact(
-            'statusChecks', 
-            'recentChecks', 
-            'stats', 
-            'healthyCount', 
-            'errorCount', 
-            'warningCount', 
+            'statusChecks',
+            'recentChecks',
+            'stats',
+            'healthyCount',
+            'errorCount',
+            'warningCount',
             'avgResponseTime'
         ));
     }
@@ -126,7 +131,7 @@ class SitemapController extends Controller
 
         $errors = $this->errorRepository->getPaginated(20, $filters);
         $recentErrors = $this->errorRepository->getRecent(24, 10);
-        
+
         // Get error statistics
         $totalErrors = $this->errorRepository->getTotal();
         $recentErrorCount = $this->errorRepository->getRecentCount(24);
@@ -135,12 +140,12 @@ class SitemapController extends Controller
         $errorTypes = $this->errorRepository->getErrorTypes();
 
         return view('sitemap::errors', compact(
-            'errors', 
-            'recentErrors', 
-            'totalErrors', 
-            'recentErrorCount', 
-            'errorRate', 
-            'affectedRoutes', 
+            'errors',
+            'recentErrors',
+            'totalErrors',
+            'recentErrorCount',
+            'errorRate',
+            'affectedRoutes',
             'errorTypes'
         ));
     }
@@ -163,7 +168,7 @@ class SitemapController extends Controller
     {
         $stats = $this->sitemapService->getDashboardStats();
         $formats = config('sitemap.export.formats');
-        
+
         // Get generation statistics
         $totalRoutes = $this->routeRepository->getTotal();
         $healthyRoutes = $this->routeRepository->getHealthyCount();
@@ -171,11 +176,11 @@ class SitemapController extends Controller
         $fileSize = $this->sitemapService->getEstimatedFileSize();
 
         return view('sitemap::generate', compact(
-            'stats', 
-            'formats', 
-            'totalRoutes', 
-            'healthyRoutes', 
-            'lastGenerated', 
+            'stats',
+            'formats',
+            'totalRoutes',
+            'healthyRoutes',
+            'lastGenerated',
             'fileSize'
         ));
     }
@@ -200,8 +205,8 @@ class SitemapController extends Controller
                 'estimated_time' => '2-5 minutes',
             ]);
 
-        } catch (\Exception $e) {
-            \Log::error('Sitemap API route discovery failed', [
+        } catch (Exception $e) {
+            Log::error('Sitemap API route discovery failed', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
@@ -233,8 +238,8 @@ class SitemapController extends Controller
                 'estimated_time' => '1-3 minutes',
             ]);
 
-        } catch (\Exception $e) {
-            \Log::error('Sitemap API status check failed', [
+        } catch (Exception $e) {
+            Log::error('Sitemap API status check failed', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
@@ -253,13 +258,13 @@ class SitemapController extends Controller
     {
         try {
             $sitemap = $this->sitemapService->generateSitemap($format);
-            
+
             $filename = "sitemap-{$format}-" . now()->format('Y-m-d-H-i-s') . ".{$format}";
-            
+
             return response($sitemap)
                 ->header('Content-Type', $this->getContentType($format))
                 ->header('Content-Disposition', "attachment; filename=\"{$filename}\"");
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return back()->withErrors(['error' => $e->getMessage()]);
         }
     }
@@ -270,7 +275,7 @@ class SitemapController extends Controller
     public function settings()
     {
         $config = config('sitemap');
-        
+
         return view('sitemap::settings', compact('config'));
     }
 
@@ -288,7 +293,7 @@ class SitemapController extends Controller
 
         // Update configuration (this would typically be stored in database or cache)
         // For now, we'll just redirect back with success message
-        
+
         return back()->with('success', 'Settings updated successfully!');
     }
 
@@ -301,16 +306,16 @@ class SitemapController extends Controller
             // Clear data in order to respect foreign key constraints
             // 1. Delete errors first (references routes)
             $errorsDeleted = $this->errorRepository->deleteAll();
-            
+
             // 2. Delete status checks (references routes)
             $statusChecksDeleted = $this->statusCheckRepository->deleteAll();
-            
+
             // 3. Delete routes last (referenced by others)
             $routesDeleted = $this->routeRepository->deleteAll();
-            
+
             // Clear all caches
             Cache::flush();
-            
+
             return response()->json([
                 'success' => true,
                 'message' => 'All sitemap data has been cleared successfully.',
@@ -318,9 +323,9 @@ class SitemapController extends Controller
                     'errors_deleted' => $errorsDeleted,
                     'status_checks_deleted' => $statusChecksDeleted,
                     'routes_deleted' => $routesDeleted,
-                ]
+                ],
             ]);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to clear data: ' . $e->getMessage(),
@@ -335,22 +340,22 @@ class SitemapController extends Controller
     {
         try {
             $days = $request->get('days', 30);
-            
+
             // Truncate old data in order to respect foreign key constraints
             // 1. Delete old errors first (references routes)
             $errorsDeleted = $this->errorRepository->deleteOld($days);
-            
+
             // 2. Delete old status checks (references routes)
             $statusChecksDeleted = $this->statusCheckRepository->deleteOld($days);
-            
+
             // 3. Delete old routes last (referenced by others)
             $routesDeleted = $this->routeRepository->deleteOld($days);
-            
+
             // Clear related caches
             Cache::forget('sitemap_route_statistics');
             Cache::forget('sitemap_routes_total');
             Cache::forget('sitemap_routes_healthy_count');
-            
+
             return response()->json([
                 'success' => true,
                 'message' => "Old data older than {$days} days has been cleared successfully.",
@@ -359,9 +364,9 @@ class SitemapController extends Controller
                     'status_checks_deleted' => $statusChecksDeleted,
                     'routes_deleted' => $routesDeleted,
                     'days' => $days,
-                ]
+                ],
             ]);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to truncate old data: ' . $e->getMessage(),
@@ -386,22 +391,22 @@ class SitemapController extends Controller
                 'sitemap_slow_queries',
                 'sitemap_avg_query_time',
             ];
-            
+
             foreach ($cacheKeys as $key) {
                 Cache::forget($key);
             }
-            
+
             // Also clear pattern-based caches
             Cache::flush();
-            
+
             return response()->json([
                 'success' => true,
                 'message' => 'All sitemap caches have been cleared successfully.',
                 'data' => [
                     'cache_keys_cleared' => count($cacheKeys),
-                ]
+                ],
             ]);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to clear cache: ' . $e->getMessage(),
@@ -414,7 +419,7 @@ class SitemapController extends Controller
      */
     protected function getContentType(string $format): string
     {
-        return match($format) {
+        return match ($format) {
             'xml' => 'application/xml',
             'json' => 'application/json',
             'csv' => 'text/csv',
@@ -429,7 +434,7 @@ class SitemapController extends Controller
     {
         $jobType = $request->get('type', 'all');
         $environment = $request->get('environment', app()->environment());
-        
+
         $status = [
             'discovery' => $this->getJobStatus('discovery', $environment),
             'status_check' => $this->getJobStatus('status_check', $environment),
@@ -475,15 +480,11 @@ class SitemapController extends Controller
         $history = Cache::get("sitemap_job_history_{$environment}", []);
 
         if ($type) {
-            $history = array_filter($history, function ($job) use ($type) {
-                return $job['type'] === $type;
-            });
+            $history = array_filter($history, fn ($job) => $job['type'] === $type);
         }
 
         // Sort by timestamp descending and limit
-        usort($history, function ($a, $b) {
-            return strtotime($b['timestamp']) - strtotime($a['timestamp']);
-        });
+        usort($history, fn ($a, $b) => strtotime($b['timestamp']) - strtotime($a['timestamp']));
 
         $history = array_slice($history, 0, $limit);
 
@@ -492,4 +493,4 @@ class SitemapController extends Controller
             'data' => $history,
         ]);
     }
-} 
+}

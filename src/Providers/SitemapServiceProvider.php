@@ -1,24 +1,26 @@
 <?php
 
+declare(strict_types=1);
+
 namespace LaravelPlus\Sitemap\Providers;
 
-use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Event;
-use LaravelPlus\Sitemap\Services\SitemapService;
-use LaravelPlus\Sitemap\Services\RouteDiscoveryService;
-use LaravelPlus\Sitemap\Services\StatusCheckService;
-use LaravelPlus\Sitemap\Services\ThresholdService;
-use LaravelPlus\Sitemap\Repositories\SitemapRouteRepository;
-use LaravelPlus\Sitemap\Repositories\SitemapStatusCheckRepository;
-use LaravelPlus\Sitemap\Repositories\SitemapErrorRepository;
+use Illuminate\Support\ServiceProvider;
 use LaravelPlus\Sitemap\Events\RoutesDiscovered;
 use LaravelPlus\Sitemap\Events\RoutesStatusChecked;
 use LaravelPlus\Sitemap\Events\SitemapGenerated;
+use LaravelPlus\Sitemap\Listeners\CacheSitemapResults;
 use LaravelPlus\Sitemap\Listeners\LogRoutesDiscovered;
 use LaravelPlus\Sitemap\Listeners\NotifyStatusCheckComplete;
-use LaravelPlus\Sitemap\Listeners\CacheSitemapResults;
+use LaravelPlus\Sitemap\Repositories\SitemapErrorRepository;
+use LaravelPlus\Sitemap\Repositories\SitemapRouteRepository;
+use LaravelPlus\Sitemap\Repositories\SitemapStatusCheckRepository;
+use LaravelPlus\Sitemap\Services\RouteDiscoveryService;
+use LaravelPlus\Sitemap\Services\SitemapService;
+use LaravelPlus\Sitemap\Services\StatusCheckService;
+use LaravelPlus\Sitemap\Services\ThresholdService;
 
-class SitemapServiceProvider extends ServiceProvider
+final class SitemapServiceProvider extends ServiceProvider
 {
     /**
      * Register services.
@@ -34,17 +36,15 @@ class SitemapServiceProvider extends ServiceProvider
         $this->app->singleton(RouteDiscoveryService::class);
         $this->app->singleton(StatusCheckService::class);
         $this->app->singleton(ThresholdService::class);
-        
+
         // Register main service with proper dependency injection
-        $this->app->singleton(SitemapService::class, function ($app) {
-            return new SitemapService(
-                $app->make(RouteDiscoveryService::class),
-                $app->make(StatusCheckService::class),
-                $app->make(SitemapRouteRepository::class),
-                $app->make(SitemapStatusCheckRepository::class),
-                $app->make(SitemapErrorRepository::class)
-            );
-        });
+        $this->app->singleton(SitemapService::class, fn ($app) => new SitemapService(
+            $app->make(RouteDiscoveryService::class),
+            $app->make(StatusCheckService::class),
+            $app->make(SitemapRouteRepository::class),
+            $app->make(SitemapStatusCheckRepository::class),
+            $app->make(SitemapErrorRepository::class)
+        ));
 
         // Merge configuration
         $this->mergeConfigFrom(__DIR__ . '/../../config/sitemap.php', 'sitemap');
@@ -114,4 +114,4 @@ class SitemapServiceProvider extends ServiceProvider
             CacheSitemapResults::class
         );
     }
-} 
+}

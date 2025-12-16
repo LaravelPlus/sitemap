@@ -1,12 +1,14 @@
 <?php
 
+declare(strict_types=1);
+
 namespace LaravelPlus\Sitemap\Console\Commands;
 
+use Exception;
 use Illuminate\Console\Command;
 use LaravelPlus\Sitemap\Services\SitemapService;
-use Illuminate\Support\Facades\Storage;
 
-class GenerateSitemapCommand extends Command
+final class GenerateSitemapCommand extends Command
 {
     protected $signature = 'sitemap:generate 
                             {--format=xml : Output format (xml, json, csv)}
@@ -33,6 +35,7 @@ class GenerateSitemapCommand extends Command
         $validFormats = ['xml', 'json', 'csv'];
         if (!in_array($format, $validFormats)) {
             $this->error("❌ Invalid format: {$format}. Valid formats: " . implode(', ', $validFormats));
+
             return 1;
         }
 
@@ -45,7 +48,7 @@ class GenerateSitemapCommand extends Command
                 $this->info("✅ Sitemap saved to: {$outputPath}");
             } else {
                 // Output to console
-                $this->info("✅ Sitemap generated successfully!");
+                $this->info('✅ Sitemap generated successfully!');
                 $this->info("📊 Format: {$format}");
                 $this->info("🌍 Environment: {$environment}");
                 $this->line('');
@@ -64,8 +67,9 @@ class GenerateSitemapCommand extends Command
                 ]
             );
 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $this->error('❌ Sitemap generation failed: ' . $e->getMessage());
+
             return 1;
         }
 
@@ -75,7 +79,7 @@ class GenerateSitemapCommand extends Command
     protected function saveToFile(string $content, string $path, string $format): void
     {
         $directory = dirname($path);
-        
+
         if (!is_dir($directory)) {
             mkdir($directory, 0755, true);
         }
@@ -84,7 +88,7 @@ class GenerateSitemapCommand extends Command
 
         // Set appropriate content type headers for web servers
         if (str_starts_with($path, 'public/')) {
-            $this->info("💡 Tip: Access your sitemap at: " . str_replace('public/', '', $path));
+            $this->info('💡 Tip: Access your sitemap at: ' . str_replace('public/', '', $path));
         }
     }
-} 
+}

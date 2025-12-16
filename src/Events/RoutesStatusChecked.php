@@ -1,24 +1,29 @@
 <?php
 
+declare(strict_types=1);
+
 namespace LaravelPlus\Sitemap\Events;
 
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
-use Illuminate\Broadcasting\PresenceChannel;
 use Illuminate\Broadcasting\PrivateChannel;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-class RoutesStatusChecked
+final class RoutesStatusChecked
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
     public int $totalRoutes;
+
     public int $successful;
+
     public int $failed;
+
     public int $errors;
+
     public string $environment;
+
     public float $executionTime;
 
     /**
@@ -37,7 +42,7 @@ class RoutesStatusChecked
     /**
      * Get the channels the event should broadcast on.
      *
-     * @return array<int, \Illuminate\Broadcasting\Channel>
+     * @return array<int, Channel>
      */
     public function broadcastOn(): array
     {
@@ -52,7 +57,7 @@ class RoutesStatusChecked
     public function broadcastWith(): array
     {
         $successRate = $this->totalRoutes > 0 ? round(($this->successful / $this->totalRoutes) * 100, 2) : 0;
-        
+
         return [
             'total_routes' => $this->totalRoutes,
             'successful' => $this->successful,
@@ -64,4 +69,4 @@ class RoutesStatusChecked
             'timestamp' => now()->toISOString(),
         ];
     }
-} 
+}

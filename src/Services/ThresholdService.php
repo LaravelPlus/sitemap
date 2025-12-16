@@ -1,16 +1,17 @@
 <?php
 
+declare(strict_types=1);
+
 namespace LaravelPlus\Sitemap\Services;
 
-use LaravelPlus\Sitemap\Models\SitemapRoute;
-use LaravelPlus\Sitemap\Models\SitemapStatusCheck;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
-use Illuminate\Support\Collection;
+use LaravelPlus\Sitemap\Models\SitemapRoute;
 
-class ThresholdService
+final class ThresholdService
 {
-    protected array $config;
+    private array $config;
 
     public function __construct()
     {
@@ -71,7 +72,7 @@ class ThresholdService
         // Check status code thresholds
         if (isset($statusCheck['status_code'])) {
             $statusCode = $statusCheck['status_code'];
-            
+
             if (in_array($statusCode, $this->config['status_code']['critical'])) {
                 $alerts[] = $this->createAlert($route, 'status_code', 'critical', $statusCode, 'critical status code');
             } elseif (in_array($statusCode, $this->config['status_code']['warning'])) {
@@ -115,7 +116,7 @@ class ThresholdService
     /**
      * Check thresholds for a group of routes (by prefix).
      */
-    protected function checkGroupThresholds(string $prefix, Collection $routes): array
+    private function checkGroupThresholds(string $prefix, Collection $routes): array
     {
         $alerts = [];
         $totalRoutes = $routes->count();
@@ -125,12 +126,12 @@ class ThresholdService
 
         foreach ($routes as $route) {
             $latestCheck = $route->statusChecks()->latest()->first();
-            
+
             if ($latestCheck) {
                 if ($latestCheck->status_code >= 400) {
                     $errorCount++;
                 }
-                
+
                 if ($latestCheck->response_time > 0) {
                     $totalResponseTime += $latestCheck->response_time;
                     $responseTimeCount++;
@@ -142,7 +143,7 @@ class ThresholdService
         if ($totalRoutes > 0) {
             $errorRate = ($errorCount / $totalRoutes) * 100;
             $thresholds = $this->getPrefixThresholds($prefix, 'error_rate');
-            
+
             if ($errorRate >= $thresholds['alert']) {
                 $alerts[] = $this->createGroupAlert($prefix, 'error_rate', 'alert', $errorRate, $thresholds['alert'], $totalRoutes);
             } elseif ($errorRate >= $thresholds['critical']) {
@@ -156,7 +157,7 @@ class ThresholdService
         if ($responseTimeCount > 0) {
             $avgResponseTime = $totalResponseTime / $responseTimeCount;
             $thresholds = $this->getPrefixThresholds($prefix, 'response_time');
-            
+
             if ($avgResponseTime >= $thresholds['alert']) {
                 $alerts[] = $this->createGroupAlert($prefix, 'response_time', 'alert', $avgResponseTime, $thresholds['alert'], $totalRoutes);
             } elseif ($avgResponseTime >= $thresholds['critical']) {
@@ -172,7 +173,7 @@ class ThresholdService
     /**
      * Get thresholds for a specific route.
      */
-    protected function getRouteThresholds(SitemapRoute $route, string $type): array
+    private function getRouteThresholds(SitemapRoute $route, string $type): array
     {
         $defaultThresholds = $this->config[$type] ?? [];
 
@@ -195,21 +196,21 @@ class ThresholdService
     /**
      * Get thresholds for a prefix.
      */
-    protected function getPrefixThresholds(string $prefix, string $type): array
+    private function getPrefixThresholds(string $prefix, string $type): array
     {
         $defaultThresholds = $this->config[$type] ?? [];
         $prefixThresholds = $this->config['monitoring']['prefixes'][$prefix] ?? [];
-        
+
         return array_merge($defaultThresholds, $prefixThresholds);
     }
 
     /**
      * Group routes by prefix for bulk monitoring.
      */
-    protected function groupRoutesByPrefix(Collection $routes): array
+    private function groupRoutesByPrefix(Collection $routes): array
     {
         $groups = [];
-        
+
         foreach ($routes as $route) {
             $prefix = $this->getRoutePrefix($route->uri);
             if (!isset($groups[$prefix])) {
@@ -224,16 +225,17 @@ class ThresholdService
     /**
      * Get the prefix for a route URI.
      */
-    protected function getRoutePrefix(string $uri): string
+    private function getRoutePrefix(string $uri): string
     {
-        $parts = explode('/', trim($uri, '/'));
+        $parts = explode('/', mb_trim($uri, '/'));
+
         return $parts[0] ?? 'default';
     }
 
     /**
      * Create an alert for a single route.
      */
-    protected function createAlert(SitemapRoute $route, string $type, string $level, $value, $threshold): array
+    private function createAlert(SitemapRoute $route, string $type, string $level, $value, $threshold): array
     {
         return [
             'type' => 'route',
@@ -251,7 +253,7 @@ class ThresholdService
     /**
      * Create an alert for a route group.
      */
-    protected function createGroupAlert(string $prefix, string $type, string $level, $value, $threshold, int $routeCount): array
+    private function createGroupAlert(string $prefix, string $type, string $level, $value, $threshold, int $routeCount): array
     {
         return [
             'type' => 'group',
@@ -269,7 +271,7 @@ class ThresholdService
     /**
      * Send threshold notifications.
      */
-    protected function sendThresholdNotifications(array $alerts): void
+    private function sendThresholdNotifications(array $alerts): void
     {
         if (!$this->config['notifications']['enabled']) {
             return;
@@ -301,7 +303,7 @@ class ThresholdService
     /**
      * Send email notification.
      */
-    protected function sendEmailNotification(array $alert): void
+    private function sendEmailNotification(array $alert): void
     {
         // Implementation for email notifications
         // This would use Laravel's notification system
@@ -310,7 +312,7 @@ class ThresholdService
     /**
      * Send Slack notification.
      */
-    protected function sendSlackNotification(array $alert): void
+    private function sendSlackNotification(array $alert): void
     {
         // Implementation for Slack notifications
         // This would use Laravel's notification system
@@ -319,9 +321,9 @@ class ThresholdService
     /**
      * Send webhook notification.
      */
-    protected function sendWebhookNotification(array $alert): void
+    private function sendWebhookNotification(array $alert): void
     {
         // Implementation for webhook notifications
         // This would use Laravel's HTTP client
     }
-} 
+}

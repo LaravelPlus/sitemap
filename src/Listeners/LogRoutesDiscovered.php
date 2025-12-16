@@ -1,17 +1,21 @@
 <?php
 
+declare(strict_types=1);
+
 namespace LaravelPlus\Sitemap\Listeners;
 
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Support\Facades\Log;
 use LaravelPlus\Sitemap\Events\RoutesDiscovered;
+use Throwable;
 
-class LogRoutesDiscovered implements ShouldQueue
+final class LogRoutesDiscovered implements ShouldQueue
 {
     use InteractsWithQueue;
 
     public $queue = 'sitemap-logs';
+
     public $tries = 3;
 
     /**
@@ -39,7 +43,7 @@ class LogRoutesDiscovered implements ShouldQueue
     /**
      * Handle a job failure.
      */
-    public function failed(RoutesDiscovered $event, \Throwable $exception): void
+    public function failed(RoutesDiscovered $event, Throwable $exception): void
     {
         Log::error('Failed to log routes discovered event', [
             'error' => $exception->getMessage(),
@@ -49,4 +53,4 @@ class LogRoutesDiscovered implements ShouldQueue
             ],
         ]);
     }
-} 
+}

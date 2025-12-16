@@ -1,18 +1,22 @@
 <?php
 
+declare(strict_types=1);
+
 namespace LaravelPlus\Sitemap\Listeners;
 
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Queue\InteractsWithQueue;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use LaravelPlus\Sitemap\Events\SitemapGenerated;
+use Throwable;
 
-class CacheSitemapResults implements ShouldQueue
+final class CacheSitemapResults implements ShouldQueue
 {
     use InteractsWithQueue;
 
     public $queue = 'sitemap-cache';
+
     public $tries = 3;
 
     /**
@@ -30,7 +34,7 @@ class CacheSitemapResults implements ShouldQueue
     {
         // Cache the sitemap generation results
         $cacheKey = "sitemap_generated_{$event->environment}_{$event->format}";
-        
+
         Cache::put($cacheKey, [
             'format' => $event->format,
             'file_size' => $event->fileSize,
@@ -94,7 +98,7 @@ class CacheSitemapResults implements ShouldQueue
     /**
      * Handle a job failure.
      */
-    public function failed(SitemapGenerated $event, \Throwable $exception): void
+    public function failed(SitemapGenerated $event, Throwable $exception): void
     {
         Log::error('Failed to cache sitemap generation results', [
             'error' => $exception->getMessage(),
@@ -104,4 +108,4 @@ class CacheSitemapResults implements ShouldQueue
             ],
         ]);
     }
-} 
+}

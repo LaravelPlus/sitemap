@@ -1,23 +1,27 @@
 <?php
 
+declare(strict_types=1);
+
 namespace LaravelPlus\Sitemap\Services;
 
+use Exception;
+use GuzzleHttp\Client;
+use GuzzleHttp\Exception\RequestException;
+use GuzzleHttp\Promise;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
+use LaravelPlus\Sitemap\Models\SitemapError;
 use LaravelPlus\Sitemap\Models\SitemapRoute;
 use LaravelPlus\Sitemap\Models\SitemapStatusCheck;
-use LaravelPlus\Sitemap\Models\SitemapError;
-use GuzzleHttp\Client;
-use GuzzleHttp\Promise;
-use GuzzleHttp\Exception\RequestException;
-use Illuminate\Support\Facades\Log;
-use LaravelPlus\Sitemap\Services\ThresholdService;
-use Illuminate\Support\Facades\Cache;
 
-class StatusCheckService
+final class StatusCheckService
 {
-    protected Client $client;
-    protected array $config;
-    protected ThresholdService $thresholdService;
+    private Client $client;
+
+    private array $config;
+
+    private ThresholdService $thresholdService;
 
     public function __construct()
     {
@@ -28,7 +32,7 @@ class StatusCheckService
             'max_routes_per_check' => 50, // Added for limiting routes
             'delay_between_checks' => 1, // Added for delaying between batches
         ]);
-        
+
         $this->client = new Client([
             'timeout' => $this->config['timeout'],
             'verify' => false, // Allow self-signed certificates
@@ -51,7 +55,7 @@ class StatusCheckService
         try {
             // Use cache to prevent duplicate checks
             $cacheKey = 'sitemap_status_check_' . ($environment ?? 'all') . '_' . now()->format('Y-m-d-H-i');
-            
+
             if (Cache::has($cacheKey)) {
                 return Cache::get($cacheKey);
             }
@@ -60,12 +64,12 @@ class StatusCheckService
             try {
                 $totalRoutes = SitemapRoute::count();
                 Log::info('Sitemap database connection test', ['total_routes' => $totalRoutes]);
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 Log::error('Sitemap database connection failed', [
                     'error' => $e->getMessage(),
                     'trace' => $e->getTraceAsString(),
                 ]);
-                
+
                 return [
                     'total' => 0,
                     'successful' => 0,
@@ -78,22 +82,22 @@ class StatusCheckService
 
             // Get routes that need checking (optimized query)
             $routes = SitemapRoute::active()
-                ->where(function ($query) {
+                ->where(function ($query): void {
                     $query->whereNull('last_checked_at')
-                          ->orWhere('last_checked_at', '<=', now()->subMinutes(30));
+                        ->orWhere('last_checked_at', '<=', now()->subMinutes(30));
                 });
-            
+
             if ($environment) {
                 $routes->forEnvironment($environment);
             }
 
             $routes = $routes->limit($this->config['max_routes_per_check'] ?? 50)->get();
-            
+
             Log::info('Sitemap routes found for status check', [
                 'total_routes' => $routes->count(),
                 'environment' => $environment,
             ]);
-            
+
             if ($routes->isEmpty()) {
                 $result = [
                     'total' => 0,
@@ -103,30 +107,31 @@ class StatusCheckService
                     'details' => [],
                     'message' => 'No routes need checking at this time.',
                 ];
-                
+
                 Cache::put($cacheKey, $result, 300);
+
                 return $result;
             }
-            
+
             $results = $this->checkRoutes($routes);
-            
+
             // Check bulk thresholds for route groups
             $bulkThresholdAlerts = $this->thresholdService->checkBulkThresholds($routes);
             if (!empty($bulkThresholdAlerts)) {
                 $results['threshold_alerts'] = $bulkThresholdAlerts;
             }
-            
+
             // Cache results for 5 minutes
             Cache::put($cacheKey, $results, 300);
-            
+
             return $results;
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('Sitemap checkAllRoutes error', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
                 'environment' => $environment,
             ]);
-            
+
             return [
                 'total' => 0,
                 'successful' => 0,
@@ -160,7 +165,7 @@ class StatusCheckService
             $batchSize = min($this->config['concurrent_requests'], 10); // Cap at 10 concurrent
             $batches = $routes->chunk($batchSize);
             $batchCount = 0;
-            
+
             foreach ($batches as $batch) {
                 $batchCount++;
                 Log::info('Sitemap processing batch', [
@@ -168,33 +173,33 @@ class StatusCheckService
                     'batch_size' => $batch->count(),
                     'total_batches' => $batches->count(),
                 ]);
-                
+
                 $batchResults = $this->checkRouteBatch($batch);
-                
+
                 // Merge batch results
                 $results['successful'] += $batchResults['successful'];
                 $results['failed'] += $batchResults['failed'];
                 $results['errors'] += $batchResults['errors'];
                 $results['details'] = array_merge($results['details'], $batchResults['details']);
-                
+
                 // Add delay between batches to prevent server overload
                 if ($batchCount < $batches->count()) {
                     usleep($this->config['delay_between_checks'] * 1000000); // Convert to microseconds
                 }
             }
-            
+
             // Calculate success rate
-            $results['success_rate'] = $results['total'] > 0 
-                ? round(($results['successful'] / $results['total']) * 100, 2) 
+            $results['success_rate'] = $results['total'] > 0
+                ? round(($results['successful'] / $results['total']) * 100, 2)
                 : 0;
-            
+
             return $results;
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('Sitemap checkRoutes error', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
-            
+
             return [
                 'total' => $routes->count(),
                 'successful' => 0,
@@ -209,7 +214,7 @@ class StatusCheckService
     /**
      * Check a batch of routes concurrently.
      */
-    protected function checkRouteBatch(Collection $routes): array
+    private function checkRouteBatch(Collection $routes): array
     {
         $promises = [];
         $routeMap = [];
@@ -220,7 +225,7 @@ class StatusCheckService
                 $promise = $this->client->getAsync($url);
                 $promises[$url] = $promise;
                 $routeMap[$url] = $route;
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 Log::error('Sitemap route URL generation error', [
                     'route_id' => $route->id,
                     'uri' => $route->uri,
@@ -244,27 +249,28 @@ class StatusCheckService
             // Set a timeout for the entire batch to prevent hanging
             $batchTimeout = $this->config['timeout'] * 2; // Double the individual timeout for batch
             $responses = Promise\Utils::settle($promises)->wait($batchTimeout);
-            
+
             foreach ($responses as $url => $response) {
                 $route = $routeMap[$url];
                 $result = $this->processResponse($route, $response);
-                
+
                 // Skip timeout routes if configured
                 if ($this->config['skip_timeout_routes'] ?? true) {
-                    if (isset($result['error_message']) && 
-                        (strpos($result['error_message'], 'timeout') !== false || 
-                         strpos($result['error_message'], 'timed out') !== false)) {
+                    if (isset($result['error_message']) &&
+                        (str_contains($result['error_message'], 'timeout')   ||
+                         str_contains($result['error_message'], 'timed out'))) {
                         Log::info('Sitemap skipping timeout route', [
                             'route_id' => $route->id,
                             'uri' => $route->uri,
                             'url' => $url,
                         ]);
+
                         continue;
                     }
                 }
-                
+
                 $results['details'][] = $result;
-                
+
                 if ($result['success']) {
                     $results['successful']++;
                 } elseif ($result['error']) {
@@ -273,12 +279,12 @@ class StatusCheckService
                     $results['failed']++;
                 }
             }
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('Sitemap status check batch failed', [
                 'error' => $e->getMessage(),
                 'routes' => $routes->pluck('uri')->toArray(),
             ]);
-            
+
             // Mark all routes in batch as failed
             foreach ($routes as $route) {
                 $results['details'][] = [
@@ -300,7 +306,7 @@ class StatusCheckService
     /**
      * Process a response and store the result.
      */
-    protected function processResponse(SitemapRoute $route, array $response): array
+    private function processResponse(SitemapRoute $route, array $response): array
     {
         $result = [
             'route_id' => $route->id,
@@ -319,7 +325,7 @@ class StatusCheckService
             $httpResponse = $response['value'];
             $statusCode = $httpResponse->getStatusCode();
             $responseTime = $this->calculateResponseTime($httpResponse);
-            $responseSize = strlen($httpResponse->getBody()->getContents());
+            $responseSize = mb_strlen($httpResponse->getBody()->getContents());
 
             $result['success'] = true;
             $result['status_code'] = $statusCode;
@@ -357,18 +363,18 @@ class StatusCheckService
     /**
      * Calculate response time from headers.
      */
-    protected function calculateResponseTime($response): float
+    private function calculateResponseTime($response): float
     {
         try {
             $headers = $response->getHeaders();
-            
+
             if (isset($headers['X-Runtime'])) {
                 return (float) $headers['X-Runtime'][0];
             }
-            
+
             // Fallback to microtime calculation
             return microtime(true) - ($_SERVER['REQUEST_TIME_FLOAT'] ?? microtime(true));
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             // If we can't get headers or calculate time, return a default value
             return 0.0;
         }
@@ -377,23 +383,23 @@ class StatusCheckService
     /**
      * Store status check result.
      */
-    protected function storeStatusCheck(SitemapRoute $route, array $result, $response): void
+    private function storeStatusCheck(SitemapRoute $route, array $result, $response): void
     {
         try {
             $body = $response->getBody()->getContents();
             $headers = $response->getHeaders();
-            
+
             SitemapStatusCheck::create([
                 'route_id' => $route->id,
                 'status_code' => $result['status_code'],
                 'response_time' => $result['response_time'],
-                'response_size' => strlen($body),
+                'response_size' => mb_strlen($body),
                 'headers' => $headers,
-                'body_preview' => substr($body, 0, 500),
+                'body_preview' => mb_substr($body, 0, 500),
                 'checked_at' => now(),
                 'environment' => app()->environment(),
             ]);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             // If we can't store the full response, store what we can
             SitemapStatusCheck::create([
                 'route_id' => $route->id,
@@ -411,7 +417,7 @@ class StatusCheckService
     /**
      * Store error information.
      */
-    protected function storeError(SitemapRoute $route, \Exception $exception): void
+    private function storeError(SitemapRoute $route, Exception $exception): void
     {
         SitemapError::create([
             'route_id' => $route->id,
@@ -432,46 +438,46 @@ class StatusCheckService
     /**
      * Get error type from exception.
      */
-    protected function getErrorType(\Exception $exception): string
+    private function getErrorType(Exception $exception): string
     {
         if ($exception instanceof RequestException) {
             $response = $exception->getResponse();
             if ($response) {
                 $statusCode = $response->getStatusCode();
-                
+
                 if ($statusCode >= 500) {
                     return 'server_error';
                 }
-                
+
                 if ($statusCode === 404) {
                     return 'not_found';
                 }
-                
+
                 if ($statusCode === 403) {
                     return 'forbidden';
                 }
-                
+
                 return 'http_error';
             }
-            
+
             if (str_contains($exception->getMessage(), 'timeout')) {
                 return 'timeout';
             }
-            
+
             if (str_contains($exception->getMessage(), 'SSL')) {
                 return 'ssl_error';
             }
-            
+
             return 'connection_failed';
         }
-        
+
         return 'unknown';
     }
 
     /**
      * Update route status.
      */
-    protected function updateRouteStatus(SitemapRoute $route, array $result): void
+    private function updateRouteStatus(SitemapRoute $route, array $result): void
     {
         $route->update([
             'last_checked_at' => now(),
@@ -484,7 +490,7 @@ class StatusCheckService
     /**
      * Update route error status.
      */
-    protected function updateRouteErrorStatus(SitemapRoute $route, \Exception $exception): void
+    private function updateRouteErrorStatus(SitemapRoute $route, Exception $exception): void
     {
         $route->increment('error_count');
         $route->update([
@@ -523,13 +529,13 @@ class StatusCheckService
         try {
             $url = url($uri);
             $startTime = microtime(true);
-            
+
             $response = $this->client->get($url);
-            
+
             $responseTime = (microtime(true) - $startTime) * 1000; // Convert to milliseconds
             $statusCode = $response->getStatusCode();
-            $responseSize = strlen($response->getBody()->getContents());
-            
+            $responseSize = mb_strlen($response->getBody()->getContents());
+
             $result = [
                 'success' => true,
                 'uri' => $uri,
@@ -540,10 +546,10 @@ class StatusCheckService
                 'headers' => $response->getHeaders(),
                 'is_healthy' => in_array($statusCode, $this->config['acceptable_status_codes']),
             ];
-            
+
             return $result;
-            
-        } catch (\Exception $e) {
+
+        } catch (Exception $e) {
             return [
                 'success' => false,
                 'uri' => $uri,
@@ -563,7 +569,7 @@ class StatusCheckService
     public function getStatistics(?string $environment = null): array
     {
         $query = SitemapStatusCheck::query();
-        
+
         if ($environment) {
             $query->forEnvironment($environment);
         }
@@ -571,7 +577,7 @@ class StatusCheckService
         $total = $query->count();
         $successful = $query->clone()->where('status_code', '>=', 200)->where('status_code', '<', 300)->count();
         $failed = $query->clone()->where('status_code', '>=', 400)->count();
-        
+
         $avgResponseTime = $query->clone()
             ->whereNotNull('response_time')
             ->avg('response_time');
@@ -584,4 +590,4 @@ class StatusCheckService
             'avg_response_time' => round($avgResponseTime ?? 0, 3),
         ];
     }
-} 
+}

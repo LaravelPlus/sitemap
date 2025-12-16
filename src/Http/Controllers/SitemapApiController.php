@@ -1,16 +1,21 @@
 <?php
 
+declare(strict_types=1);
+
 namespace LaravelPlus\Sitemap\Http\Controllers;
 
+use Artisan;
+use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
-use LaravelPlus\Sitemap\Services\SitemapService;
-use LaravelPlus\Sitemap\Models\SitemapRoute;
-use LaravelPlus\Sitemap\Http\Requests\UpdatePriorityRequest;
 use LaravelPlus\Sitemap\Http\Requests\UpdateChangeFreqRequest;
+use LaravelPlus\Sitemap\Http\Requests\UpdatePriorityRequest;
+use LaravelPlus\Sitemap\Models\SitemapRoute;
+use LaravelPlus\Sitemap\Services\SitemapService;
 use LaravelPlus\Sitemap\Services\ThresholdService;
+use Log;
 
-class SitemapApiController extends Controller
+final class SitemapApiController extends Controller
 {
     protected SitemapService $sitemapService;
 
@@ -25,7 +30,7 @@ class SitemapApiController extends Controller
     public function stats()
     {
         $stats = $this->sitemapService->getDashboardStats();
-        
+
         return response()->json([
             'success' => true,
             'data' => $stats,
@@ -38,11 +43,11 @@ class SitemapApiController extends Controller
     public function routes(Request $request)
     {
         $query = SitemapRoute::query();
-        
+
         if ($request->has('environment')) {
             $query->forEnvironment($request->environment);
         }
-        
+
         if ($request->has('status')) {
             switch ($request->status) {
                 case 'active':
@@ -62,11 +67,11 @@ class SitemapApiController extends Controller
 
         if ($request->has('search')) {
             $query->where('uri', 'like', '%' . $request->search . '%')
-                  ->orWhere('name', 'like', '%' . $request->search . '%');
+                ->orWhere('name', 'like', '%' . $request->search . '%');
         }
 
         $routes = $query->paginate($request->get('per_page', 20));
-        
+
         return response()->json([
             'success' => true,
             'data' => $routes,
@@ -78,9 +83,9 @@ class SitemapApiController extends Controller
      */
     public function route(SitemapRoute $route)
     {
-        $route->load(['statusChecks' => function ($query) {
+        $route->load(['statusChecks' => function ($query): void {
             $query->orderBy('checked_at', 'desc')->limit(10);
-        }, 'errors' => function ($query) {
+        }, 'errors' => function ($query): void {
             $query->orderBy('occurred_at', 'desc')->limit(10);
         }]);
 
@@ -96,7 +101,7 @@ class SitemapApiController extends Controller
     public function updatePriority(UpdatePriorityRequest $request, SitemapRoute $route)
     {
         $success = $this->sitemapService->updateRoutePriority($route->id, $request->priority);
-        
+
         if ($success) {
             return response()->json([
                 'success' => true,
@@ -116,7 +121,7 @@ class SitemapApiController extends Controller
     public function updateChangeFreq(UpdateChangeFreqRequest $request, SitemapRoute $route)
     {
         $success = $this->sitemapService->updateRouteChangeFreq($route->id, $request->changefreq);
-        
+
         if ($success) {
             return response()->json([
                 'success' => true,
@@ -136,9 +141,10 @@ class SitemapApiController extends Controller
     public function toggleRoute(SitemapRoute $route)
     {
         $success = $this->sitemapService->toggleRouteStatus($route->id);
-        
+
         if ($success) {
             $route->refresh();
+
             return response()->json([
                 'success' => true,
                 'message' => 'Route status toggled successfully',
@@ -174,8 +180,8 @@ class SitemapApiController extends Controller
                 'estimated_time' => '2-5 minutes',
             ]);
 
-        } catch (\Exception $e) {
-            \Log::error('Sitemap API route discovery failed', [
+        } catch (Exception $e) {
+            Log::error('Sitemap API route discovery failed', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
@@ -211,8 +217,8 @@ class SitemapApiController extends Controller
                 'estimated_time' => '1-3 minutes',
             ]);
 
-        } catch (\Exception $e) {
-            \Log::error('Sitemap API status check failed', [
+        } catch (Exception $e) {
+            Log::error('Sitemap API status check failed', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
@@ -234,7 +240,7 @@ class SitemapApiController extends Controller
         ]);
 
         $route = SitemapRoute::find($request->route_id);
-        
+
         if (!$route) {
             return response()->json([
                 'success' => false,
@@ -244,13 +250,13 @@ class SitemapApiController extends Controller
 
         try {
             $result = $this->sitemapService->getStatusCheck()->checkRoutes(collect([$route]));
-            
+
             return response()->json([
                 'success' => true,
                 'message' => 'Route status checked successfully',
                 'data' => $result,
             ]);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to check route status: ' . $e->getMessage(),
@@ -269,13 +275,13 @@ class SitemapApiController extends Controller
 
         try {
             $result = $this->sitemapService->getStatusCheck()->testRoute($request->uri);
-            
+
             return response()->json([
                 'success' => true,
                 'message' => 'Route test completed',
                 'data' => $result,
             ]);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to test route: ' . $e->getMessage(),
@@ -316,8 +322,8 @@ class SitemapApiController extends Controller
                 'estimated_time' => '30 seconds - 2 minutes',
             ]);
 
-        } catch (\Exception $e) {
-            \Log::error('Sitemap API generation failed', [
+        } catch (Exception $e) {
+            Log::error('Sitemap API generation failed', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
@@ -335,9 +341,9 @@ class SitemapApiController extends Controller
     public function cleanup(Request $request)
     {
         $days = $request->get('days', 30);
-        
+
         $result = $this->sitemapService->cleanupOldData($days);
-        
+
         return response()->json([
             'success' => true,
             'message' => 'Cleanup completed successfully',
@@ -352,7 +358,7 @@ class SitemapApiController extends Controller
     {
         try {
             $routes = SitemapRoute::active()->get();
-            
+
             if ($routes->isEmpty()) {
                 return response()->json([
                     'success' => false,
@@ -362,19 +368,19 @@ class SitemapApiController extends Controller
 
             $thresholdService = app(ThresholdService::class);
             $alerts = $thresholdService->checkBulkThresholds($routes);
-            
+
             return response()->json([
                 'success' => true,
                 'alerts' => $alerts,
                 'total_alerts' => count($alerts),
                 'routes_monitored' => $routes->count(),
             ]);
-        } catch (\Exception $e) {
-            \Log::error('Sitemap API thresholdAlerts error', [
+        } catch (Exception $e) {
+            Log::error('Sitemap API thresholdAlerts error', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
-            
+
             return response()->json([
                 'success' => false,
                 'message' => 'Internal server error: ' . $e->getMessage(),
@@ -429,18 +435,18 @@ class SitemapApiController extends Controller
             ]);
 
             // Clear config cache
-            \Artisan::call('config:clear');
+            Artisan::call('config:clear');
 
             return response()->json([
                 'success' => true,
                 'message' => 'Settings saved successfully.',
             ]);
-        } catch (\Exception $e) {
-            \Log::error('Sitemap API saveSettings error', [
+        } catch (Exception $e) {
+            Log::error('Sitemap API saveSettings error', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
-            
+
             return response()->json([
                 'success' => false,
                 'message' => 'Internal server error: ' . $e->getMessage(),
@@ -486,22 +492,22 @@ class SitemapApiController extends Controller
             ]);
 
             // Clear config cache
-            \Artisan::call('config:clear');
+            Artisan::call('config:clear');
 
             return response()->json([
                 'success' => true,
                 'message' => 'Settings reset to defaults successfully.',
             ]);
-        } catch (\Exception $e) {
-            \Log::error('Sitemap API resetSettings error', [
+        } catch (Exception $e) {
+            Log::error('Sitemap API resetSettings error', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
-            
+
             return response()->json([
                 'success' => false,
                 'message' => 'Internal server error: ' . $e->getMessage(),
             ], 500);
         }
     }
-} 
+}
