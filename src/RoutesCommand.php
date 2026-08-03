@@ -24,7 +24,7 @@ final class RoutesCommand extends Command
         $routes = $sitemap->auditRoutes();
 
         if ($filter = $this->argument('filter')) {
-            $routes = array_filter($routes, static fn (array $r): bool => str_contains($r['uri'], (string) $filter));
+            $routes = array_filter($routes, static fn (array $r): bool => str_contains($r['loc'], (string) $filter));
         }
 
         if ($this->option('included')) {
@@ -41,11 +41,13 @@ final class RoutesCommand extends Command
             return self::SUCCESS;
         }
 
-        usort($routes, static fn (array $a, array $b): int => [$b['included'], $a['uri']] <=> [$a['included'], $b['uri']]);
+        usort($routes, static fn (array $a, array $b): int => [$b['included'], $a['loc']] <=> [$a['included'], $b['loc']]);
 
-        $this->table(['', 'URI', 'Reason'], array_map(static fn (array $r): array => [
+        // Show the absolute URL: on a multi-domain app the path alone is
+        // ambiguous — `/` exists on every domain.
+        $this->table(['', 'URL', 'Reason'], array_map(static fn (array $r): array => [
             $r['included'] ? '<info>in</info>' : '<comment>out</comment>',
-            $r['uri'],
+            $r['loc'],
             $r['reason'],
         ], $routes));
 

@@ -20,6 +20,21 @@ Every registered `GET` route, minus:
   that does the work; a hand-maintained URI list always drifts behind the app.
 - URI prefixes listed in `config/sitemap.php`
 
+## Multiple domains
+
+A route declared with `Route::domain()` is listed on **its own** host, not on
+`APP_URL`. On a multi-domain app that is the difference between a usable sitemap
+and one that points crawlers at pages which 404:
+
+```
+in   https://example.com/pricing
+in   https://p.example.com/            <- viewer domain, same `/` path
+out  https://api.example.com/v1/user   private middleware: auth
+```
+
+`sitemap:routes` prints absolute URLs for the same reason — on a multi-domain
+app the path alone is ambiguous.
+
 ## Dynamic URLs
 
 `add()` takes a callable run **per request**, so it may hit the database, and it

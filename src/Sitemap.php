@@ -65,7 +65,7 @@ final class Sitemap
         $entries = [];
 
         foreach ($this->routeUris() as $uri) {
-            $entries[] = ['loc' => url($uri), 'lastmod' => null];
+            $entries[] = ['loc' => $uri, 'lastmod' => null];
         }
 
         foreach ($this->sources as $source) {
@@ -112,7 +112,7 @@ final class Sitemap
      * `sitemap:routes` renders this — "why is my page missing" is the whole
      * reason a sitemap needs a CLI at all.
      *
-     * @return list<array{uri:string,included:bool,reason:string}>
+     * @return list<array{uri:string,loc:string,included:bool,reason:string}>
      */
     public function auditRoutes(): array
     {
@@ -129,27 +129,49 @@ final class Sitemap
             $uri = '/'.ltrim($route->uri(), '/');
             $blocked = array_intersect($private, $this->middlewareNames($route));
 
-            $audit[$uri] = match (true) {
-                $uri === '/' => ['uri' => $uri, 'included' => true, 'reason' => 'public route'],
-                str_contains($uri, '{') => ['uri' => $uri, 'included' => false, 'reason' => 'has parameters — register real URLs with Sitemap::add()'],
+            $verdict = match (true) {
+                $uri === '/' => [true, 'public route'],
+                str_contains($uri, '{') => [false, 'has parameters — register real URLs with Sitemap::add()'],
                 // sitemap.xml, robots.txt, feeds: not pages, never listed.
-                (bool) preg_match('/\.(xml|txt|json|rss|atom|ics|pdf|css|js)$/', $uri) => ['uri' => $uri, 'included' => false, 'reason' => 'not an HTML page'],
-                ($prefix = $this->excludedBy($uri, $exclude)) !== null => ['uri' => $uri, 'included' => false, 'reason' => "excluded by config prefix '{$prefix}'"],
+                (bool) preg_match('/\.(xml|txt|json|rss|atom|ics|pdf|css|js)$/', $uri) => [false, 'not an HTML page'],
+                ($prefix = $this->excludedBy($uri, $exclude)) !== null => [false, "excluded by config prefix '{$prefix}'"],
                 // A route a guest can't reach is a route a crawler can't reach.
                 // This is the load-bearing filter: an exclude list of URI
                 // prefixes always drifts behind the app's private surface.
-                $blocked !== [] => ['uri' => $uri, 'included' => false, 'reason' => 'private middleware: '.implode(', ', $blocked)],
-                default => ['uri' => $uri, 'included' => true, 'reason' => 'public route'],
+                $blocked !== [] => [false, 'private middleware: '.implode(', ', $blocked)],
+                default => [true, 'public route'],
             };
+
+            $loc = $this->absolute($uri, $route->getDomain());
+
+            // Keyed by the absolute URL, not the path: on a multi-domain app
+            // `/` exists on every domain and they are different pages.
+            $audit[$loc] = ['uri' => $uri, 'loc' => $loc, 'included' => $verdict[0], 'reason' => $verdict[1]];
         }
 
         return array_values($audit);
     }
 
-    /** @return list<string> */
+    /**
+     * Absolute URL for a route. A route declared with Route::domain() belongs to
+     * that host — url() would stamp APP_URL on it and point the crawler at a
+     * page that does not exist there.
+     */
+    private function absolute(string $uri, ?string $domain): string
+    {
+        if ($domain === null || $domain === '') {
+            return url($uri);
+        }
+
+        $scheme = parse_url((string) config('app.url'), PHP_URL_SCHEME) ?: 'https';
+
+        return rtrim($scheme.'://'.$domain.($uri === '/' ? '' : $uri), '/') ?: $scheme.'://'.$domain;
+    }
+
+    /** @return list<string> Absolute URLs. */
     private function routeUris(): array
     {
-        return array_column(array_filter($this->auditRoutes(), static fn (array $r): bool => $r['included']), 'uri');
+        return array_column(array_filter($this->auditRoutes(), static fn (array $r): bool => $r['included']), 'loc');
     }
 
     /**
