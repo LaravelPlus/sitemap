@@ -27,8 +27,8 @@ final class SitemapServiceProvider extends ServiceProvider
         }
 
         if (config('sitemap.route') !== null) {
-            Route::get(config('sitemap.route'), fn () => $this->app->make(Sitemap::class)->response())
-                ->name('sitemap');
+            // Controller class, never a Closure — see SitemapController.
+            Route::get(config('sitemap.route'), SitemapController::class)->name('sitemap');
         }
     }
 }
