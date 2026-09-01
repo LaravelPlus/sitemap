@@ -7,6 +7,7 @@ namespace LaravelPlus\Sitemap;
 use Illuminate\Http\Response;
 use Illuminate\Routing\Route as RoutingRoute;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Str;
 
 /**
  * Builds the public XML sitemap from the application's own registered GET
@@ -20,7 +21,7 @@ final class Sitemap
     /** @var list<callable(): iterable<string|array{loc:string,lastmod?:string}>> */
     private array $sources = [];
 
-    /** @var list<string>|callable(): ?iterable<string>|null URIs to restrict the map to, `null` = no restriction. */
+    /** @var list<string>|callable(): ?iterable<string>|null URI patterns (`*` allowed) to restrict the map to, `null` = no restriction. */
     private $only = null;
 
     /**
@@ -39,6 +40,10 @@ final class Sitemap
     /**
      * Restrict the sitemap to these URIs (leading slash optional) and drop
      * everything else — route-derived and dynamic alike.
+     *
+     * `*` is a wildcard, so `jobs/*` keeps every ad without listing 54k paths.
+     * It spans slashes (`early-access/*` also keeps `early-access/a/b`) and does
+     * not match the bare prefix — `jobs/*` keeps the ads, not the index.
      *
      * Use it when a gate (waitlist, coming-soon) redirects most of the app:
      * a sitemap full of redirects wastes crawl budget and hides the one page
@@ -82,10 +87,9 @@ final class Sitemap
 
         if ($only !== null) {
             $allowed = array_map(static fn (string $uri): string => '/'.ltrim($uri, '/'), [...$only]);
-            $entries = array_filter($entries, static fn (array $e): bool => in_array(
-                '/'.ltrim((string) parse_url($e['loc'], PHP_URL_PATH), '/'),
+            $entries = array_filter($entries, static fn (array $e): bool => Str::is(
                 $allowed,
-                true,
+                '/'.ltrim((string) parse_url($e['loc'], PHP_URL_PATH), '/'),
             ));
         }
 
